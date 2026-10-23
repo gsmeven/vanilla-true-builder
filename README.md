@@ -280,7 +280,8 @@ When you select a skin and click **`AUDIT`**, you do not need to touch raw files
 * **Extraction:** Pulls exclusively the target skin binaries, Base `Skin0`, and `.skn` 3D geometry files in RAM without extracting or decompressing the entire multi-gigabyte champion archive.
 * **Core Data:** Decompiles binary properties (`PROP`) and extracts canonical skeletons, animation graphs, persistent idle VFX keys, and satellite deployables (traps, turrets, pets).
 * **3D Submesh Analysis:** Compares the target skin's 3D mesh descriptors against Base to identify visibility or weapon-vanishing discrepancies.
-* **Payload Synthesis:** Translates all complex diagnostic data into a single, standardized, ready-to-solve prompt (`COPY PAYLOAD`) designed specifically for reasoning AIs.
+* **Audit Report (`COPY REPORT`):** Generates a full telemetry report across main champion bodies and deployable satellites for initial triage.
+* **Payload Generation (`Copy payload`):** Extracts the raw resolver blocks, submesh alias directives, and canonical Base files for the selected row on demand.
 
 The AI receives the exact, pristine baseline data it needs to write the fix, strictly adhering to the **10 Laws of Curation** to guarantee zero crashes, perfect hitboxes, and 100% native client stability.
 
