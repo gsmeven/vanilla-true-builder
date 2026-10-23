@@ -31,7 +31,7 @@
 
 Traditional custom mods often rely on hacky placeholder textures, foreign dummy meshes, or destructive overrides that trigger DirectX crashes and hitbox desynchronization. Instead, VTB operates natively on official Riot archives using reverse-engineering toolchains [ritobin](https://github.com/LeagueToolkit/ritobin-tools) & [wadtools](https://github.com/LeagueToolkit/wadtools).
 
-The engine performs surgical, in-place property patching—modifying strictly what is necessary and rebinding champion rigs, faction structures, minions, and wards canonically to the game's own native Base definitions already compiled in your client. No third-party assets are ever imported: whenever an asset is strictly required to neutralize visual clutter, it is synthesized on the fly via raw hexadecimal bytecode (such as hardware-compliant 144-byte asset). This guarantees zero foreign bloat, flawless client stability, and a completely purified default experience.
+The engine performs surgical, in-place property patching—modifying strictly what is necessary and rebinding champion rigs, faction structures, minions, and wards canonically to the game's own native Base definitions already compiled in your client. No third-party assets are ever imported: whenever an asset is strictly required to neutralize visual clutter, it is synthesized on the fly via raw hexadecimal bytecode (such as hardware-compliant 144-byte assets). This guarantees zero foreign bloat, flawless client stability, and a completely purified default experience.
 
 > [!IMPORTANT]
 > * **First-Time Build Duration:** The initial compilation takes a few minutes as VTB processes and sanitizes multiple WADs in parallel.
@@ -109,7 +109,7 @@ Every restoration module can be toggled independently to match your restoration 
 | [**Structures**](#-2-structures) | Turrets, Rubble, Inhibitors, Nexus, Shopkeepers | Reverts team structures to default Order/Chaos bases; preserves ARAM/Bilgewater logic through structural integrity filters. | Base structures with canonical models. |
 | [**Minions**](#-3-minions) | Melee, Ranged, Siege, and Super Minions | Re-indexes skin assignments to Faction IDs 0 and 1 without full map decompilation bloat. | Canonical minion silhouettes and wave readability. |
 | [**Wards**](#-4-wards) | Sight, Yellow Trinket, Control/Jammer, Blue Trinket | Re-maps ward skin hashes to default base models across all inventory items. | Default ward silhouettes with uniform, canonical models. |
-| [**Map Accents**](#-5-map-accents) | Clash banners, Worlds trophies, sponsor ads, godrays | Intercepts `mWorldParticlesINI`, neutralizes `StaticMaterialDef` diffuse passes, and assigns 144-byte asset. | Vanilla Rift with zero billboard clutter. |
+| [**Map Accents**](#-5-map-accents) | Clash banners, Worlds trophies, sponsor ads, godrays | Intercepts `mWorldParticlesINI`, neutralizes `StaticMaterialDef` diffuse passes, and assigns 144-byte assets. | Vanilla Rift with zero billboard clutter. |
 | [**Nexus Finishers**](#-6-nexus-finishers) | Victory/Defeat cinematic overlays and audio banks | Clears `complexEmitterDefinitionData`, sets `m_Enabled = false`, and purges end-of-game audio banks in `UI.wad.client`. | Default victory/defeat screen pan across every match, without cinematic interruptions. |
 | [**Special Recalls**](#-7-special-recalls) | Honor 5 & Challenger recall crests | Rewrites shared telemetry blocks in `Global.wad.client` to enforce canonical home recall VFX. | Classic recall VFX, no additional aura crests. |
 
@@ -165,7 +165,7 @@ Deleting material definitions or stripping particle systems directly from proper
   }
   ```
   The particle subsystem evaluates zero active emitters, halting simulation loops, physics updates, and draw passes without breaking engine memory graphs.
-* **Finisher & Telemetry Decoupling:** Silences Victory/Defeat cinematic interruptions by emptying `AudioBankPaths: list2[string] = {}`, setting `m_Enabled = false`, and redirecting UI override paths strictly back to baseline gameplay UX (`clientstates/gameplay/ux/endofgame/uibase`).
+* **Finisher Decoupling:** Silences Victory/Defeat cinematic interruptions by emptying `AudioBankPaths: list2[string] = {}`, setting `m_Enabled = false`, and redirecting UI override paths strictly back to baseline gameplay UX (`clientstates/gameplay/ux/endofgame/uibase`).
 
 ### 3. CAC Severing, Graph Reversion & Resource Parity
 Rather than modifying spell logic, VTB operates on the game client's serialized property trees (`PROP`):
@@ -190,7 +190,7 @@ RAW_TRANSPARENT_TEX_BYTES = (
 > [!NOTE]
 > This asset is used only for auto-instantiated Clash banners/trophies and esports stage banners in `Global.wad.client`. Because the client automatically renders these assets if equipped by any player in the match, suppressing them safely requires a valid texture path. All other clutter is handled natively without external assets via shader alpha discard and particle severing (Item 2).
 
-### 5. SHA256 Cache (`_is_cache_valid`)
+### 5. Cache Validator (`_is_cache_valid`)
 VTB avoids redundant re-compilation across League patches via a dual-signature validation layer:
 
 $$\text{Cache Validity} = (\text{WAD\_HASH} = \text{Current WAD}) \land (\text{SCRIPT\_HASH} = \text{Engine Fingerprint})$$
