@@ -61,7 +61,7 @@ The engine performs surgical, in-place property patching—modifying strictly wh
 
 1. Click **`SKIN FIX`** in the top-right corner of the main app to launch the **Auditor**.
 2. Drag-and-drop, upload, or copy the contents of `ai_context.md` from your root folder.
-3. Send it into any reasoning AI chat (Claude, ChatGPT, DeepSeek).
+3. Send it into any reasoning AI chat (e.g., Gemini, ChatGPT, DeepSeek).
 4. Select the champion and skin, click **`AUDIT`**, then click **`📋 COPY REPORT`** at the bottom and paste it into the AI.
 5. If the AI determines a fix is required:
     * Right-click the requested row to **`Copy payload`** and send it to the AI.
@@ -101,23 +101,23 @@ python auditor.py
 
 ## 🧰 Modules
 
-Every restoration module can be toggled independently in the Hextech UI to match your competitive preferences:
+Every restoration module can be toggled independently to match your restoration preferences:
 
-| Module | Target Scope | Technical Implementation | Competitive Impact |
+| Module | Target Scope | Technical Implementation | Experience Expected |
 | :--- | :--- | :--- | :--- |
-| [**Champions**](#-1-champions) | All champion skins | Rebinds animation graph to `Skin0`, clones base rig/mesh properties, resets CAC, and injects in-place submesh aliases. | Identical hitboxes, zero animation latency, consistent spell read. |
-| [**Structures**](#-2-structures) | Turrets, Rubble, Inhibitors, Nexus, Shopkeepers | Reverts team structures to default Order/Chaos bases; preserves ARAM/Bilgewater logic through structural integrity filters. | Eliminates oversized turret visual clutter and rubble confusion. |
-| [**Minions**](#-3-minions) | Melee, Ranged, Siege, and Super Minions | Re-indexes skin assignments to Faction IDs 0 and 1 without full map decompilation bloat. | Canonical creep silhouette and clean wave readability. |
-| [**Wards**](#-4-wards) | Sight, Yellow Trinket, Control/Jammer, Blue Trinket | Re-maps ward skin hashes to default base models across all inventory items. | Instantly identifiable ward health bars and uniform models. |
-| [**Map Accents**](#-5-map-accents) | Clash banners, world cup trophies, sponsor ads, godrays | Intercepts `mWorldParticlesINI`, neutralizes `StaticMaterialDef` diffuse passes, and assigns 144-byte micro-textures. | Clean competitive Rift with zero billboard distraction. |
-| [**Nexus Finishers**](#-6-nexus-finishers) | Victory/Defeat cinematic overlays and audio banks | Clears `complexEmitterDefinitionData`, sets `m_Enabled = false`, and purges end-of-game audio banks in `UI.wad.client`. | Immediate clean victory screen pan without cinematic interruptions. |
-| [**Special Recalls**](#-7-special-recalls) | Honor 5, Challenger, and event recall crests | Rewrites shared telemetry blocks in `Global.wad.client` to enforce canonical home recall VFX. | Consistent recall silhouette, no misleading aura crests. |
+| [**Champions**](#-1-champions) | All champion skins | Rebinds animation graph to `Skin0`, clones base rig/mesh properties, resets CAC, and injects in-place submesh aliases. | Canonical base animations, uniform silhouettes, and original spell readability. |
+| [**Structures**](#-2-structures) | Turrets, Rubble, Inhibitors, Nexus, Shopkeepers | Reverts team structures to default Order/Chaos bases; preserves ARAM/Bilgewater logic through structural integrity filters. | Base structures with canonical models. |
+| [**Minions**](#-3-minions) | Melee, Ranged, Siege, and Super Minions | Re-indexes skin assignments to Faction IDs 0 and 1 without full map decompilation bloat. | Canonical minion silhouettes and wave readability. |
+| [**Wards**](#-4-wards) | Sight, Yellow Trinket, Control/Jammer, Blue Trinket | Re-maps ward skin hashes to default base models across all inventory items. | Default ward silhouettes with uniform, canonical models. |
+| [**Map Accents**](#-5-map-accents) | Clash banners, Worlds trophies, sponsor ads, godrays | Intercepts `mWorldParticlesINI`, neutralizes `StaticMaterialDef` diffuse passes, and assigns 144-byte micro-textures. | Vanilla Rift with zero billboard clutter. |
+| [**Nexus Finishers**](#-6-nexus-finishers) | Victory/Defeat cinematic overlays and audio banks | Clears `complexEmitterDefinitionData`, sets `m_Enabled = false`, and purges end-of-game audio banks in `UI.wad.client`. | Default victory/defeat screen pan across every match, without cinematic interruptions. |
+| [**Special Recalls**](#-7-special-recalls) | Honor 5 & Challenger recall crests | Rewrites shared telemetry blocks in `Global.wad.client` to enforce canonical home recall VFX. | Classic recall VFX, no additional aura crests. |
 
 ## ⚙️ Core Technical
 
 The pipeline operates directly on the game client's serialized property trees (`PROP`) and in-memory binary descriptors. Instead of importing external files or patching game logic, every character rig, animation controller, particle emitter, and faction asset is rebound to official Base definitions already compiled in the game archives. This preserves exact collision volumes, audio bank routing, and DirectX 11 pipeline stability without introducing foreign assets:
 
-### 1. In-Place Binary Submesh Descriptor Patching (`patch_skn_submesh_inplace`)
+### 1. Binary Patch (`patch_skn_submesh_inplace`)
 Certain legendary and mythic skins (e.g., True Damage Ekko) introduce divergent 3D submesh names in their `.skn` definitions. When spell scripts execute vanishing, visibility, or material shader callbacks (such as hiding a weapon mesh during cast animations or morph states), the rigid Base animation graph fails to locate the expected submesh string, causing invisible models or stuck geometry artifacts.
 
 VTB resolves this entirely in memory without hosting or distributing external 3D models. The engine parses the native Riot `.skn` binary structure (`0x00112233` header), locates the target submesh within the 64-byte null-padded descriptor array, and patches the identifier in **0ms**:
@@ -141,7 +141,29 @@ def patch_skn_submesh_inplace(base_skn_bytes: bytes, old_name: str, new_name: st
 
 When an override in `overrides/` declares `# SUBMESH_ALIAS: <Base> -> <Target>`, the official Base `.skn` descriptor is cloned, aliased, and packed dynamically into the mod archive.
 
-### 2. Hardware-Safe Neutralization & 144-Byte BC3 Micro-Textures (`RAW_TRANSPARENT_TEX_BYTES`)
+### 2. Shader & Particle Neutralization (`StaticMaterialDef` & `VfxSystemDefinitionData`)
+Deleting material definitions or stripping particle systems directly from property files causes critical null-pointer dereferences in Riot's rendering engine and particle tick threads. Whenever visual clutter can be eliminated without external assets, VTB operates 100% natively through surgical property manipulation:
+
+* **Native Texture Retention & Mathematical Alpha Discard:** In `StaticMaterialDef`, rather than binding dummy files, VTB preserves the native diffuse texture path (`_extract_diffuse_texture`) to satisfy graphics driver pipeline contracts, but rewrites the pass to use `DefaultEnv_Flat_AlphaTest`:
+  $$\text{AlphaTestValue} = \{ 2.0, 0, 0, 0 \}, \quad \text{TintColor} = \{ 0, 0, 0, 0 \}$$
+  Because normalized texture alpha channels are strictly bounded within $[0.0, 1.0]$, 100% of pixel fragments fail the alpha test stage unconditionally ($1.0 < 2.0$). Rasterization is immediately aborted at the hardware level prior to pixel shading, eliminating draw overhead completely without injecting any placeholder textures.
+* **Particle Emitter Severing (`VfxSystemDefinitionData`):** Rather than deleting particle nodes referenced by spell scripts or ambient map triggers, VTB collapses emitter hierarchies into empty pointer arrays:
+  ```ritobin
+  "Vfx_Identifier" = VfxSystemDefinitionData {
+      complexEmitterDefinitionData: list[pointer] = {}
+      simpleEmitterDefinitionData: list[pointer] = {}
+  }
+  ```
+  The particle subsystem evaluates zero active emitters, halting simulation loops, physics updates, and draw passes without breaking engine memory graphs.
+* **Finisher & Telemetry Decoupling:** Silences Victory/Defeat cinematic interruptions by emptying `AudioBankPaths: list2[string] = {}`, setting `m_Enabled = false`, and redirecting UI override paths strictly back to baseline gameplay UX (`clientstates/gameplay/ux/endofgame/uibase`).
+
+### 3. Graph Reversion, CAC Severing & Resource Parity
+Rather than modifying spell logic, VTB operates on the game client's serialized property trees (`PROP`):
+* **Contextual Action Data (CAC) Severing:** When `main.py` binds `mContextualActionData: link = "Characters/<Champion>/CAC/<Champion>_Base"`, runtime state machines controlling cosmetic multi-forms (e.g., Elementalist Lux, DJ Sona, Kayn stances) are severed at the root. The engine never instantiates cosmetic sub-entities.
+* **Rig & Animation Graph Alignment:** Skeletons, meshes, textures, and scales are rebound 1:1 to Base `Skin0`, forcing `animationGraphData` to `"Characters/<Entity>/Animations/Skin0"`.
+* **100% Base ResourceMap Parity:** The `resourceMap` within `ResourceResolver` is cloned verbatim from `Skin0`. All target-skin exclusive combat variants, divergent recalls, emotes, and dead-branch hashes (`0x00000000`) are purged. The engine only ever queries native Base animation events, guaranteeing zero desynchronization.
+
+### 4. 144-Byte BC3 Micro-Textures (`RAW_TRANSPARENT_TEX_BYTES`)
 Deleting diffuse textures or substituting them with zero-byte files causes fatal DirectX swapchain crashes and GPU device removal errors (`DXGI_ERROR_DEVICE_REMOVED`) when pixel shaders sample unbound texture coordinates. 
 
 VTB generates and injects an exact, hardware-compliant 144-byte DirectX 11 BC3/DXT5 transparent micro-texture (`4x4` texels, 1 mip level, uncompressed pitch 16 bytes):
@@ -155,15 +177,10 @@ RAW_TRANSPARENT_TEX_BYTES = (
 )
 ```
 
-By linking this micro-texture to neutral `StaticMaterialDef` shader passes enforcing `AlphaTestValue = 2.0`, `DefaultEnv_Flat_AlphaTest`, and `TintColor = {0, 0, 0, 0}`, all tournament statues, clash banners, and promotional billboards vanish with **zero GPU draw-call penalty**.
+> [!NOTE]
+> **Strictly As-Needed:** This micro-texture is **strictly utilized** only when unavoidable—specifically for dynamic Clash banners, esports tournament stage banners, and Summoner trophies in `Global.wad.client`. Because the game client hardcodes and instantiates these loadout entities automatically regardless of player ownership, severing them requires a valid texture asset path. Everything else that can be neutralized natively without external textures is handled purely through shader-level alpha discard and particle severing (Item 2).
 
-### 3. Native Graph Reversion, CAC Severing & Pure Canonical Resource Parity
-Rather than modifying spell logic, VTB operates on the game client's serialized property trees (`PROP`):
-* **Contextual Action Data (CAC) Severing:** When `main.py` binds `mContextualActionData: link = "Characters/<Champion>/CAC/<Champion>_Base"`, runtime state machines controlling cosmetic multi-forms (e.g., Elementalist Lux, DJ Sona, Kayn stances) are severed at the root. The engine never instantiates cosmetic sub-entities.
-* **Rig & Animation Graph Alignment:** Skeletons, meshes, textures, and scales are rebound 1:1 to Base `Skin0`, forcing `animationGraphData` to `"Characters/<Entity>/Animations/Skin0"`.
-* **100% Base ResourceMap Parity:** The `resourceMap` within `ResourceResolver` is cloned verbatim from `Skin0`. All target-skin exclusive combat variants, divergent recalls, emotes, and dead-branch hashes (`0x00000000`) are purged. The engine only ever queries native Base animation events, guaranteeing zero desynchronization.
-
-### 4. Double-SHA256 Cache Management (`_is_cache_valid`)
+### 5. Double-SHA256 Cache (`_is_cache_valid`)
 VTB avoids redundant re-compilation across League patches via an dual-signature validation layer:
 
 $$\text{Cache Validity} = (\text{WAD\_HASH} = \text{Current WAD}) \land (\text{SCRIPT\_HASH} = \text{Engine Fingerprint})$$
@@ -172,26 +189,26 @@ $$\text{Cache Validity} = (\text{WAD\_HASH} = \text{Current WAD}) \land (\text{S
 * **Pipeline Engine Fingerprint:** Truncated SHA-256 derived from `PIPELINE_CORE_VERSION`. If the VTB pipeline or submesh contract engine code updates, obsolete caches invalidate automatically.
 * **Master Flat Storage:** Cached outputs are stored in flat directories (`cache/<wad_name>/.hash`), allowing unchanged archives to bypass extraction, decompilation, sanitization, and recompilation in **0ms**.
 
-### 5. Dynamic Adapter (Rust & C++ Ritobin)
+### 6. Dynamic Adapter (Rust & C++ Ritobin)
 VTB natively bridges legacy and modern toolchains. Upon initialization, the engine probes `ritobin.exe --help` via `is_rust_ritobin()` to detect binary architecture:
 * **Rust Toolchain:** Formulates CLI arguments using verb commands (`convert <in> -o <out> -t rito/bin -H <hashes>`).
 * **Legacy C++ Toolchain:** Automatically switches to positional syntax (`-i bin/text -o text/bin -d <hashes> <in> <out>`).
 
 This dynamic adapter prevents toolchain breakage across automated CI/CD updates and community forks.
 
-### Smart Processing
+### 7. Smart Multi-Core Processing
 Processing over 160 champions and monolithic map archives sequentially would take hours. VTB leverages a multi-process architecture:
 * **Dynamic Core Scaling:** Allocates CPU workers dynamically via `MAX_PARALLEL_WAD_JOBS = max(1, int(CPU_COUNT * 0.60))`, preventing system freezes while maximizing throughput.
 * **Isolated Scratch Workspace:** All decompression and extraction tasks execute in a dedicated system `%TEMP%` buffer (`VanillaTrueTemp`) guarded by `atexit` and `SIGINT`/`SIGTERM` signal handlers.
 * **Selective Regex Extraction:** Uses targeted regex filters (`-x` flag) in `wadtools` to decompress exclusively relevant skin `.bin` and `.skn` assets, bypassing gigabytes of animations, voiceovers, and soundbanks.
 
-### 7. Autonomous Toolchain CI/CD 
+### 8. Autonomous Toolchain CI/CD 
 VTB maintains its own dependencies autonomously:
 * **ETag Conditional Synchronization:** Hashes and tool archives are queried via HTTP headers (`If-None-Match`). If the server returns HTTP `304 Not Modified`, bandwidth and IO are spared.
 * **Monolithic Game Hash Assembly:** Downloads CommunityDragon hash chunks (`hashes.game.txt.0`, `.1`, etc.) and seamlessly reconstructs the monolithic hash container locally.
 * **Silent Windows In-Place Hot-Swap:** When a newer release is published on GitHub, VTB downloads the updated package in the background, renames the running process to `_old.exe`, moves the new binary into place, spawns the updated instance, and terminates the parent cleanly.
 
-### 8. Structural Integrity
+### 9. Structural Integrity
 Restoring structures and minions is not a simple "force Skin0" replacement. Naive mods that overwrite all structures with Skin 0 cause catastrophic visual bugs, such as Red (Chaos) turrets displaying Blue (Order) models, confusing players and ruining team readability.
 
 VTB implements a surgical 4-way quadrant matching system combined with mathematical fallbacks:
@@ -208,10 +225,10 @@ else:
     target_base_id = "3"  # Chaos Red
 ```
 
-* **Hybrid Property Parsing:** Inspects the internal binary property `championSkinName` for explicit team tags (`"chaos"`, `"order"`, `"red"`, `"blue"`). If omitted by Riot, it falls back to modulo arithmetic (`skin_id % 4` and `skin_id % 2`).
-* **Factional Rubble Alignment (`turretrubble`):** Rebinds destroyed turret rubble strictly to Order (`Skin 0`) or Chaos (`Skin 1`) bases, ensuring ground wreckage always reflects the correct team alignment.
-* **Minion Faction Balancing:** Routes Melee, Ranged, Siege, and Super minions to canonical Faction 0 (Order) and Faction 1 (Chaos) baselines without corrupting alternate game tables.
-* **Alternate Mode Shield (`OTHER_INTEGRITY`):** Filters and isolates non-SR assets (`_ha`, `ha_`, `_bw`, `bw_`, `_aram`), guaranteeing that custom structures on ARAM (Howling Abyss) and Butcher's Bridge remain 100% intact.
+* **Property Parsing:** Inspects the internal binary property `championSkinName` for explicit team tags (`"chaos"`, `"order"`, `"red"`, `"blue"`). If omitted by Riot, it falls back to modulo arithmetic (`skin_id % 4` and `skin_id % 2`).
+* **Rubble Alignment (`turretrubble`):** Rebinds destroyed turret rubble strictly to Order (`Skin 0`) or Chaos (`Skin 1`) bases, ensuring ground wreckage always reflects the correct team alignment.
+* **Minion Faction:** Routes Melee, Ranged, Siege, and Super minions to canonical Faction 0 (Order) and Faction 1 (Chaos) baselines without corrupting alternate game tables.
+* **Others Protection (`OTHER_INTEGRITY`):** Filters and isolates non-SR assets (`_ha`, `ha_`, `_bw`, `bw_`, `_aram`), guaranteeing that canonical structures as on ARAM (Howling Abyss) and Butcher's Bridge remain intact.
 
 ## 🏗️ Architecture
 
@@ -241,11 +258,12 @@ flowchart TD
 ### `auditor.py` — Forensic Curation
 A standalone forensic laboratory for skin analysis and instant curation:
 * **Real Causality Filter:** Differentiates between benign linear models and real mechanical divergences.
-* **Skeleton & Graph Diffing:** Flags custom rigs (`custom_skl`) and custom animation controllers (`custom_graph`).
+* **Skin Diffing:** Flags custom rigs (`custom_skl`) and custom animation controllers (`custom_graph`).
 * **Satellite Telemetry:** Discovers combat pets and deployables (`extraCharacterPreloads`), extracting persistent idle keys (`idleParticlesEffects`).
-* **Chroma Variant Inheritance:** Scans raw binary structures via FNV-1a hash matching to resolve parent skin IDs without full decompile overhead.
-* **AI Curation Payload Generator:** Generates standardized, ready-to-solve prompt payloads for deep AI analysis with zero manual typing.
-* **Direct Test Packaging:** Single-click **`TEST`** button compiles, validates, and packages isolated `.fantome` archives for instant local testing in LTK Manager.
+* **Variant Inheritance:** Scans raw binary structures via FNV-1a hash matching to resolve parent skin IDs without full decompile overhead.
+* **Audit Report:** One-click **`COPY REPORT`** exports full champion family diagnostics directly to your clipboard for instant AI triage.
+* **Payload Generator:** Right-click **`Copy payload`** generates standardized, ready-to-solve prompts with raw resolvers and Base graph parity.
+* **Test Packaging:** Single-click **`TEST`** button compiles, validates, and packages isolated `.fantome` test archives for instant local testing in LTK Manager.
 
 ### `overrides/` — Curated Templates
 A version-controlled directory of hand-crafted templates for legendary and ultimate skins requiring non-linear state machine handling (e.g., Blackfrost Anivia, True Damage Ekko). Includes pre-configured `# VARIANTS:` and `# SUBMESH_ALIAS:` headers.
@@ -256,12 +274,12 @@ In traditional League of Legends modding, fixing broken animations, invisible mo
 
 **Vanilla True Builder automates this entire pipeline.** Through the built-in **Auditor (`SKIN FIX`)**, anyone, even without prior coding or 3D modeling experience, can curate and fix any skin in seconds by following the interactive **`HELP`** guide in the top toolbar.
 
-### The Autonomous Heavy Lifting (Behind the Scenes)
+### Autonomous Heavy Lifting
 When you select a skin and click **`AUDIT`**, you do not need to touch raw files or decipher engine schemas. The Auditor autonomously executes:
-* **Surgical Bin & Mesh Extraction:** Pulls exclusively the target skin binaries, Base `Skin0`, and `.skn` 3D geometry files in RAM without extracting or decompressing the entire multi-gigabyte champion archive.
-* **Property Tree Decompilation:** Decompiles binary properties (`PROP`) and extracts canonical skeletons, animation graphs, persistent idle VFX keys, and satellite deployables (traps, turrets, pets).
-* **3D Submesh Contract Analysis:** Compares the target skin's 3D mesh descriptors against Base to identify visibility or weapon-vanishing discrepancies.
-* **Instant Payload Synthesis:** Translates all complex diagnostic data into a single, standardized, ready-to-solve prompt (`COPY PAYLOAD`) designed specifically for reasoning AIs (Claude, ChatGPT, DeepSeek).
+* **Extraction:** Pulls exclusively the target skin binaries, Base `Skin0`, and `.skn` 3D geometry files in RAM without extracting or decompressing the entire multi-gigabyte champion archive.
+* **Core Data:** Decompiles binary properties (`PROP`) and extracts canonical skeletons, animation graphs, persistent idle VFX keys, and satellite deployables (traps, turrets, pets).
+* **3D Submesh Analysis:** Compares the target skin's 3D mesh descriptors against Base to identify visibility or weapon-vanishing discrepancies.
+* **Payload Synthesis:** Translates all complex diagnostic data into a single, standardized, ready-to-solve prompt (`COPY PAYLOAD`) designed specifically for reasoning AIs.
 
 The AI receives the exact, pristine baseline data it needs to write the fix, strictly adhering to the **10 Laws of Curation** to guarantee zero crashes, perfect hitboxes, and 100% native client stability.
 
