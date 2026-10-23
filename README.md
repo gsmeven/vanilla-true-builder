@@ -144,7 +144,7 @@ When an override in `overrides/` declares `# SUBMESH_ALIAS: <Base> -> <Target>`,
 ### 2. Shader & Particle Neutralization (`StaticMaterialDef` & `VfxSystemDefinitionData`)
 Deleting material definitions or stripping particle systems directly from property files causes critical null-pointer dereferences in Riot's rendering engine and particle tick threads. Whenever visual clutter can be eliminated without external assets, VTB operates natively through surgical property manipulation:
 
-* **Texture Alpha Discard (`StaticMaterialDef`):** Rather than binding dummy files, VTB preserves the native diffuse texture path to satisfy graphics driver pipeline contracts, but rewrites the pass parameters to force hardware alpha rejection:
+* **Shader Alpha Discard (`StaticMaterialDef`):** Rather than binding dummy files, VTB preserves the native diffuse texture path to satisfy graphics driver pipeline contracts, but rewrites the pass parameters to force hardware alpha rejection:
   ```ritobin
   "Material_Identifier" = StaticMaterialDef {
       paramValues: list2[embed] = {
@@ -170,7 +170,7 @@ Deleting material definitions or stripping particle systems directly from proper
 ### 3. CAC Severing, Graph Reversion & Resource Parity
 Rather than modifying spell logic, VTB operates on the game client's serialized property trees (`PROP`):
 * **Contextual Action Data (CAC):** When `main.py` binds `mContextualActionData: link = "Characters/<Champion>/CAC/<Champion>_Base"`, runtime state machines controlling cosmetic multi-forms (e.g., Elementalist Lux, DJ Sona, Kayn stances) are severed at the root. The engine never instantiates cosmetic sub-entities.
-* **Graph Reversion:** Skeletons, meshes, textures, and scales are rebound 1:1 to Base `Skin0`, forcing `animationGraphData` to `"Characters/<Entity>/Animations/Skin0"`.
+* **Skin Graph Alignment:** Skeletons, meshes, textures, and scales are rebound 1:1 to Base `Skin0`, forcing `animationGraphData` to `"Characters/<Entity>/Animations/Skin0"`.
 * **Base ResourceMap:** The `resourceMap` within `ResourceResolver` is cloned verbatim from `Skin0`. All target-skin exclusive combat variants, divergent recalls, emotes, and dead-branch hashes (`0x00000000`) are purged. The engine only ever queries native Base animation events, guaranteeing zero desynchronization.
 
 ### 4. 144-Byte BC3 Micro-Texture (`RAW_TRANSPARENT_TEX_BYTES`)
