@@ -144,9 +144,19 @@ When an override in `overrides/` declares `# SUBMESH_ALIAS: <Base> -> <Target>`,
 ### 2. Shader & Particle Neutralization (`StaticMaterialDef` & `VfxSystemDefinitionData`)
 Deleting material definitions or stripping particle systems directly from property files causes critical null-pointer dereferences in Riot's rendering engine and particle tick threads. Whenever visual clutter can be eliminated without external assets, VTB operates natively through surgical property manipulation:
 
-* **Native Texture Retention & Mathematical Alpha Discard:** In `StaticMaterialDef`, rather than binding dummy files, VTB preserves the native diffuse texture path (`_extract_diffuse_texture`) to satisfy graphics driver pipeline contracts, but rewrites the pass to use `DefaultEnv_Flat_AlphaTest`:
-  $$\text{AlphaTestValue} = \{ 2.0, 0, 0, 0 \}, \quad \text{TintColor} = \{ 0, 0, 0, 0 \}$$
-  Because normalized texture alpha channels are strictly bounded within $[0.0, 1.0]$, all pixel fragments fail the alpha test stage unconditionally ($1.0 < 2.0$). Rasterization is immediately aborted at the hardware level prior to pixel shading, eliminating draw overhead completely without injecting any placeholder textures.
+* **Texture Alpha Discard (`StaticMaterialDef`):** Rather than binding dummy files, VTB preserves the native diffuse texture path to satisfy graphics driver pipeline contracts, but rewrites the pass parameters to force hardware alpha rejection:
+  ```ritobin
+  "Material_Identifier" = StaticMaterialDef {
+      paramValues: list2[embed] = {
+          StaticMaterialShaderParamDef {
+              name: string = "AlphaTestValue"
+              value: vec4 = { 2, 0, 0, 0 }
+          }
+      }
+      shader: link = "Shaders/StaticMesh/DefaultEnv_Flat_AlphaTest"
+  }
+  ```
+  Because normalized texture alpha channels are strictly bounded within [0.0, 1.0], all pixel fragments fail the alpha test stage unconditionally (1.0 < 2.0). Rasterization is immediately aborted at the hardware level prior to pixel shading, eliminating draw overhead completely without injecting any placeholder textures.
 * **Particle Emitter Severing (`VfxSystemDefinitionData`):** Rather than deleting particle nodes referenced by spell scripts or ambient map triggers, VTB collapses emitter hierarchies into empty pointer arrays:
   ```ritobin
   "Vfx_Identifier" = VfxSystemDefinitionData {
