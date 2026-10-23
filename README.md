@@ -37,7 +37,7 @@ The engine performs surgical, in-place property patching—modifying strictly wh
 > * **First-Time Build Duration:** The initial compilation takes a few minutes as VTB processes and sanitizes multiple WADs in parallel.
 > * **Temporary Scratch Space:** Decompressed archives are processed in an isolated `%TEMP%` buffer without touching your game installation, and pruned automatically upon completion.
 > * **LTK Game Overlay:** When patching **for the first time**, LTK Manager constructs a staged game overlay requiring **~21 GB of disk space** and takes a few minutes to finish. This initial duration and storage footprint are inherent characteristics of LTK's virtual filesystem.
-> * **Dual-Hash Cache:** Validated via `WAD_HASH:SCRIPT_HASH`. Subsequent builds are near-instant, maintaining a compact local cache (**~1 GB**) of strictly necessary decompiled game files.
+> * **Hash Cache:** Validated via `WAD_HASH:SCRIPT_HASH`. Subsequent builds are near-instant, maintaining a compact local cache (**~1 GB**) of strictly necessary decompiled game files.
 > * **Patch-Resilient:** Intelligent patch tracking monitors your root `.fantome` file against live game archives. You only need to run **`BUILD PACKAGE`** when prompted, updating altered files in seconds.
 > * **Skin Curation:** Over **95% of champion skins revert automatically**. Edge cases with unique submeshes or animation conflicts can be resolved in under two minutes via the built-in Auditor (**`SKIN FIX`**) and reasoning AI.
 
@@ -178,9 +178,9 @@ RAW_TRANSPARENT_TEX_BYTES = (
 ```
 
 > [!NOTE]
-> **Strictly As-Needed:** This micro-texture is **strictly utilized** only when unavoidable—specifically for dynamic Clash banners, esports tournament stage banners, and Summoner trophies in `Global.wad.client`. Because the game client hardcodes and instantiates these loadout entities automatically regardless of player ownership, severing them requires a valid texture asset path. Everything else that can be neutralized natively without external textures is handled purely through shader-level alpha discard and particle severing (Item 2).
+> This micro-texture is used only when unavoidable—specifically for auto-instantiated Clash banners, esports stage banners, and Summoner trophies in `Global.wad.client`. Because the client loads these loadout entities regardless of player ownership, suppressing them safely requires a valid texture path. All other clutter is handled 100% natively without external assets via shader alpha discard and particle severing (Item 2).
 
-### 5. Double-SHA256 Cache (`_is_cache_valid`)
+### 5. SHA256 Cache (`_is_cache_valid`)
 VTB avoids redundant re-compilation across League patches via an dual-signature validation layer:
 
 $$\text{Cache Validity} = (\text{WAD\_HASH} = \text{Current WAD}) \land (\text{SCRIPT\_HASH} = \text{Engine Fingerprint})$$
