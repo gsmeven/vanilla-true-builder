@@ -1,0 +1,65 @@
+#PROP_text
+type: string = "PROP"
+version: u32 = 3
+linked: list[string] = {
+	"DATA/Characters/AniviaIceblock/AniviaIceblock.bin"
+	"DATA/Characters/AniviaIceblock/Animations/Skin0.bin"
+	"DATA/Characters/Anivia/Anivia.bin"
+	"DATA/Characters/Anivia/Animations/Skin0.bin"
+}
+entries: map[hash,embed] = {
+	"Characters/AniviaIceblock/Skins/Skin5" = SkinCharacterDataProperties {
+		championSkinName: string = "AniviaIceBlockBase"
+		skinAnimationProperties: embed = skinAnimationProperties {
+			animationGraphData: link = "Characters/AniviaIceblock/Animations/Skin0"
+		}
+		idleParticlesEffects: list[embed] = {
+			SkinCharacterDataProperties_CharacterIdleEffect {
+				effectKey: hash = "Anivia_W_Tar"
+			}
+		}
+		skinMeshProperties: embed = SkinMeshDataProperties {
+			skeleton: string = "ASSETS/Characters/AniviaIceblock/skins/base/IceBlock.skl"
+			simpleSkin: string = "ASSETS/Characters/AniviaIceblock/skins/base/IceBlock.skn"
+			texture: file = "assets/characters/aniviaiceblock/skins/base/iceblock.tex"
+			skinScale: f32 = 0.25
+			selfIllumination: f32 = 0.5
+			reflectionFresnelColor: rgba = { 0, 0, 0, 255 }
+		}
+		iconCircle: option[file] = {
+			"assets/characters/aniviaiceblock/info/bear_circle.tex"
+		}
+		iconSquare: option[file] = {
+			"assets/characters/aniviaiceblock/info/bear_square.tex"
+		}
+		mResourceResolver: link = "Characters/AniviaIceblock/Skins/Skin5/Resources"
+		objectPath: hash = "Characters/AniviaIceblock/Skins/Skin5"
+	}
+	"Characters/AniviaIceblock/Skins/Skin5/Resources" = ResourceResolver {
+		resourceMap: map[hash,link] = {
+			"Anivia_BA_Crit_Tar" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_BA_Crit_Tar"
+			"Anivia_BA_Mis" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_BA_Mis"
+			"Anivia_BA_Tar" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_BA_Tar"
+			"Anivia_EggTimer" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_EggTimer"
+			"Anivia_E_Mis" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_E_Mis"
+			"Anivia_E_Tar" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_E_Tar"
+			"Anivia_FrostBite_chilled_tar" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_FrostBite_chilled_tar"
+			"Anivia_Q_AOE_Mis" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_Q_AOE_Mis"
+			"Anivia_Q_Mis" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_Q_Mis"
+			"Anivia_Q_Tar" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_Q_Tar"
+			"Anivia_Q_Tar_Hit" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_Q_Tar_Hit"
+			"Anivia_Rebirth" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_Rebirth"
+			"Anivia_R_Shard_tar" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_R_Shard_tar"
+			"Anivia_R_AOE_Green" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_R_AOE_Green"
+			"Anivia_R_Tar" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_R_Tar"
+			"Anivia_R_AOE_Red" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_R_AOE_Red"
+			"Anivia_R_cryostorm_01" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_R_cryostorm_01"
+			"Anivia_R_Full" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_R_Full"
+			"Anivia_R_indicator_ring" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_R_indicator_ring"
+			"Anivia_R_Prison_tar_01" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_R_Prison_tar_01"
+			"Anivia_R_warning_01" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_R_warning_01"
+			"Anivia_W_Tar" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_W_Tar"
+			"Anivia_Chilled_Freeze_Trail" = "Characters/Anivia/Skins/Skin0/Particles/Anivia_Base_Chilled_Freeze_Trail"
+		}
+	}
+}

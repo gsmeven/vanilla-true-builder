@@ -1,0 +1,622 @@
+"{RECALL_KEY}" = VfxSystemDefinitionData {
+        complexEmitterDefinitionData: list[pointer] = {
+            VfxEmitterDefinitionData {
+                rate: embed = ValueFloat {
+                    constantValue: f32 = 2
+                }
+                particleLifetime: embed = ValueFloat {
+                    constantValue: f32 = 1
+                }
+                lifetime: option[f32] = {
+                    1
+                }
+                isSingleParticle: flag = true
+                emitterName: string = "Skybeam"
+                SpawnShape: pointer = VfxShapeLegacy {}
+                EmitterPosition: embed = ValueVector3 {
+                    constantValue: vec3 = { 0, -95, 0 }
+                }
+                primitive: pointer = VfxPrimitiveRay {}
+                particleColorTexture: string = "ASSETS/Shared/Particles/color-bellcurve.tex"
+                pass: i16 = 5
+                miscRenderFlags: u8 = 1
+                isGroundLayer: flag = true
+                birthRotation0: embed = ValueVector3 {
+                    constantValue: vec3 = { -90, 0, 0 }
+                }
+                isLocalOrientation: flag = false
+                birthScale0: embed = ValueVector3 {
+                    constantValue: vec3 = { 80, 1900, 0 }
+                }
+                scale0: embed = ValueVector3 {
+                    dynamics: pointer = VfxAnimatedVector3fVariableData {
+                        times: list[f32] = {
+                            0
+                            0.1
+                            0.3
+                            0.6
+                            1
+                        }
+                        values: list[vec3] = {
+                            { 2, 1, 0 }
+                            { 1.3, 1, 0 }
+                            { 0.3, 1, 0 }
+                            { 0.1, 1, 0 }
+                            { 0, 1, 0 }
+                        }
+                    }
+                }
+                texture: string = "ASSETS/Shared/Particles/Global_Summoner_Recall_Skybeam.tex"
+            }
+            VfxEmitterDefinitionData {
+                rate: embed = ValueFloat {
+                    constantValue: f32 = 1
+                }
+                particleLifetime: embed = ValueFloat {
+                    constantValue: f32 = 8
+                }
+                lifetime: option[f32] = {
+                    8
+                }
+                isSingleParticle: flag = true
+                emitterName: string = "RingTImer"
+                SpawnShape: pointer = VfxShapeLegacy {}
+                primitive: pointer = VfxPrimitiveArbitraryQuad {}
+                blendMode: u8 = 4
+                birthColor: embed = ValueColor {
+                    constantValue: vec4 = { 0, 1, 1, 0.20392159 }
+                }
+                miscRenderFlags: u8 = 1
+                isUniformScale: flag = true
+                isGroundLayer: flag = true
+                birthRotation0: embed = ValueVector3 {
+                    constantValue: vec3 = { 90, 0, 0 }
+                }
+                birthScale0: embed = ValueVector3 {
+                    constantValue: vec3 = { 190, 1, 1 }
+                }
+                scale0: embed = ValueVector3 {
+                    dynamics: pointer = VfxAnimatedVector3fVariableData {
+                        times: list[f32] = {
+                            0
+                            0.08
+                            0.17
+                            0.25
+                            0.5
+                            1
+                        }
+                        values: list[vec3] = {
+                            { 0.2, 0.2, 0.2 }
+                            { 0.7, 0.7, 0.7 }
+                            { 0.9, 0.9, 0.9 }
+                            { 1.3, 1.3, 1.3 }
+                            { 1.3, 1.3, 1.3 }
+                            { 0.6, 0.6, 0.6 }
+                        }
+                    }
+                }
+                texture: string = "ASSETS/Shared/Particles/Global_Summoner_Recall_PulseRing.tex"
+            }
+            VfxEmitterDefinitionData {
+                rate: embed = ValueFloat {
+                    constantValue: f32 = 2
+                    dynamics: pointer = VfxAnimatedFloatVariableData {
+                        times: list[f32] = {
+                            0
+                            1
+                        }
+                        values: list[f32] = {
+                            2
+                            6
+                        }
+                    }
+                }
+                particleLifetime: embed = ValueFloat {
+                    constantValue: f32 = 1
+                }
+                lifetime: option[f32] = {
+                    8
+                }
+                emitterName: string = "Ripples"
+                SpawnShape: pointer = VfxShapeLegacy {}
+                primitive: pointer = VfxPrimitiveArbitraryQuad {}
+                blendMode: u8 = 4
+                birthColor: embed = ValueColor {
+                    dynamics: pointer = VfxAnimatedColorVariableData {
+                        times: list[f32] = {
+                            0
+                            0.2
+                            1
+                        }
+                        values: list[vec4] = {
+                            { 1, 1, 1, 0 }
+                            { 1, 1, 1, 1 }
+                            { 1, 1, 1, 1 }
+                        }
+                    }
+                }
+                Color: embed = ValueColor {
+                    dynamics: pointer = VfxAnimatedColorVariableData {
+                        times: list[f32] = {
+                            0
+                            0.2
+                            1
+                        }
+                        values: list[vec4] = {
+                            { 0, 1, 1, 0 }
+                            { 0, 1, 1, 1 }
+                            { 0, 0.666667, 1, 0 }
+                        }
+                    }
+                }
+                miscRenderFlags: u8 = 1
+                isUniformScale: flag = true
+                isGroundLayer: flag = true
+                birthRotation0: embed = ValueVector3 {
+                    constantValue: vec3 = { 90, 0, 0 }
+                }
+                birthScale0: embed = ValueVector3 {
+                    constantValue: vec3 = { 260, 260, 260 }
+                    dynamics: pointer = VfxAnimatedVector3fVariableData {
+                        times: list[f32] = {
+                            0
+                            0.3
+                            1
+                        }
+                        values: list[vec3] = {
+                            { 312, 312, 312 }
+                            { 312, 312, 312 }
+                            { 156, 156, 156 }
+                        }
+                    }
+                }
+                scale0: embed = ValueVector3 {
+                    dynamics: pointer = VfxAnimatedVector3fVariableData {
+                        times: list[f32] = {
+                            0
+                            1
+                        }
+                        values: list[vec3] = {
+                            { 0.6, 0.6, 0.6 }
+                            { 0.8, 0.8, 0.8 }
+                        }
+                    }
+                }
+                texture: string = "ASSETS/Shared/Particles/Global_Summoner_Recall_PulseRing.tex"
+            }
+            VfxEmitterDefinitionData {
+                rate: embed = ValueFloat {
+                    constantValue: f32 = 2
+                }
+                particleLifetime: embed = ValueFloat {
+                    constantValue: f32 = 1
+                }
+                lifetime: option[f32] = {
+                    1
+                }
+                isSingleParticle: flag = true
+                emitterName: string = "Skylight"
+                SpawnShape: pointer = VfxShapeLegacy {}
+                primitive: pointer = VfxPrimitiveRay {}
+                particleColorTexture: string = "ASSETS/Shared/Particles/Global_Summoner_Recall_Color_BlueFade.tex"
+                miscRenderFlags: u8 = 1
+                isGroundLayer: flag = true
+                birthRotation0: embed = ValueVector3 {
+                    constantValue: vec3 = { -90, 0, 0 }
+                }
+                isLocalOrientation: flag = false
+                birthScale0: embed = ValueVector3 {
+                    constantValue: vec3 = { 190, 1900, 0 }
+                }
+                scale0: embed = ValueVector3 {
+                    dynamics: pointer = VfxAnimatedVector3fVariableData {
+                        times: list[f32] = {
+                            0
+                            0.2
+                            1
+                        }
+                        values: list[vec3] = {
+                            { 0, 1, 0 }
+                            { 0.5, 1, 0 }
+                            { 1, 1, 0 }
+                        }
+                    }
+                }
+                texture: string = "ASSETS/Shared/Particles/Global_Summoner_Recall_SkybeamGlow.tex"
+            }
+            VfxEmitterDefinitionData {
+                rate: embed = ValueFloat {
+                    constantValue: f32 = 1
+                }
+                particleLifetime: embed = ValueFloat {
+                    constantValue: f32 = 8
+                }
+                lifetime: option[f32] = {
+                    8
+                }
+                isSingleParticle: flag = true
+                emitterName: string = "RingGlow"
+                SpawnShape: pointer = VfxShapeLegacy {}
+                primitive: pointer = VfxPrimitiveArbitraryQuad {}
+                blendMode: u8 = 4
+                birthColor: embed = ValueColor {
+                    dynamics: pointer = VfxAnimatedColorVariableData {
+                        times: list[f32] = {
+                            0
+                            1
+                        }
+                        values: list[vec4] = {
+                            { 0, 1, 1, 0 }
+                            { 0, 0.666667, 1, 1 }
+                        }
+                    }
+                }
+                disableBackfaceCull: bool = true
+                miscRenderFlags: u8 = 1
+                isUniformScale: flag = true
+                isGroundLayer: flag = true
+                birthRotation0: embed = ValueVector3 {
+                    constantValue: vec3 = { 90, 0, 0 }
+                }
+                birthRotationalVelocity0: embed = ValueVector3 {
+                    constantValue: vec3 = { 0, 250, 0 }
+                }
+                birthScale0: embed = ValueVector3 {
+                    constantValue: vec3 = { 200, 200, 200 }
+                }
+                scale0: embed = ValueVector3 {
+                    dynamics: pointer = VfxAnimatedVector3fVariableData {
+                        times: list[f32] = {
+                            0
+                            0.08
+                            0.17
+                            0.25
+                            0.4
+                            1
+                        }
+                        values: list[vec3] = {
+                            { 0.2, 0.2, 0.2 }
+                            { 0.7, 0.7, 0.7 }
+                            { 0.9, 0.9, 0.9 }
+                            { 1, 1, 1 }
+                            { 1, 1, 1 }
+                            { 0.6, 0.6, 0.6 }
+                        }
+                    }
+                }
+                texture: string = "ASSETS/Shared/Particles/Global_Summoner_Recall_RingGlow.tex"
+                texDiv: vec2 = { -1, 1 }
+            }
+            VfxEmitterDefinitionData {
+                rate: embed = ValueFloat {
+                    constantValue: f32 = 10
+                }
+                particleLifetime: embed = ValueFloat {
+                    constantValue: f32 = 1
+                    dynamics: pointer = VfxAnimatedFloatVariableData {
+                        probabilityTables: list[pointer] = {
+                            VfxProbabilityTableData {
+                                keyTimes: list[f32] = {
+                                    0
+                                    1
+                                }
+                                keyValues: list[f32] = {
+                                    1
+                                    3
+                                }
+                            }
+                        }
+                        times: list[f32] = {
+                            0
+                            1
+                        }
+                        values: list[f32] = {
+                            1
+                            0.5
+                        }
+                    }
+                }
+                lifetime: option[f32] = {
+                    8
+                }
+                emitterName: string = "skyStreak_quads1"
+                birthVelocity: embed = ValueVector3 {
+                    constantValue: vec3 = { 0, 40, 0 }
+                    dynamics: pointer = VfxAnimatedVector3fVariableData {
+                        probabilityTables: list[pointer] = {
+                            VfxProbabilityTableData {}
+                            VfxProbabilityTableData {
+                                keyTimes: list[f32] = {
+                                    0
+                                    1
+                                }
+                                keyValues: list[f32] = {
+                                    1
+                                    2
+                                }
+                            }
+                            VfxProbabilityTableData {}
+                        }
+                        times: list[f32] = {
+                            0
+                            0.2
+                            1
+                        }
+                        values: list[vec3] = {
+                            { 0, 40, 0 }
+                            { 0, 40, 0 }
+                            { 0, 320, 0 }
+                        }
+                    }
+                }
+                bindWeight: embed = ValueFloat {
+                    constantValue: f32 = 1
+                }
+                SpawnShape: pointer = VfxShapeLegacy {
+                    emitOffset: embed = ValueVector3 {
+                        constantValue: vec3 = { 30, 700, 0 }
+                        dynamics: pointer = VfxAnimatedVector3fVariableData {
+                            probabilityTables: list[pointer] = {
+                                VfxProbabilityTableData {
+                                    keyTimes: list[f32] = {
+                                        0
+                                        1
+                                    }
+                                    keyValues: list[f32] = {
+                                        1
+                                        1.3
+                                    }
+                                }
+                                VfxProbabilityTableData {
+                                    keyTimes: list[f32] = {
+                                        0
+                                        1
+                                    }
+                                    keyValues: list[f32] = {
+                                        0.5
+                                        1
+                                    }
+                                }
+                                VfxProbabilityTableData {}
+                            }
+                            times: list[f32] = {
+                                0
+                            }
+                            values: list[vec3] = {
+                                { 30, 700, 0 }
+                            }
+                        }
+                    }
+                    emitRotationAngles: list[embed] = {
+                        ValueFloat {
+                            constantValue: f32 = 1
+                            dynamics: pointer = VfxAnimatedFloatVariableData {
+                                probabilityTables: list[pointer] = {
+                                    VfxProbabilityTableData {
+                                        keyTimes: list[f32] = {
+                                            0
+                                            1
+                                        }
+                                        keyValues: list[f32] = {
+                                            0
+                                            360
+                                        }
+                                    }
+                                }
+                                times: list[f32] = {
+                                    0
+                                }
+                                values: list[f32] = {
+                                    1
+                                }
+                            }
+                        }
+                    }
+                    emitRotationAxes: list[vec3] = {
+                        { 0, 1, 0 }
+                    }
+                }
+                primitive: pointer = VfxPrimitiveRay {}
+                blendMode: u8 = 4
+                Color: embed = ValueColor {
+                    dynamics: pointer = VfxAnimatedColorVariableData {
+                        times: list[f32] = {
+                            0
+                            0.3
+                            0.6
+                            1
+                        }
+                        values: list[vec4] = {
+                            { 0.666667, 1, 1, 0 }
+                            { 0, 0.666667, 1, 1 }
+                            { 0, 1, 1, 1 }
+                            { 0.333333, 0.666667, 1, 0 }
+                        }
+                    }
+                }
+                isRandomStartFrame: flag = true
+                birthRotation0: embed = ValueVector3 {
+                    constantValue: vec3 = { 90, 0, 0 }
+                }
+                isLocalOrientation: flag = false
+                birthScale0: embed = ValueVector3 {
+                    constantValue: vec3 = { 120, 120, 20 }
+                    dynamics: pointer = VfxAnimatedVector3fVariableData {
+                        probabilityTables: list[pointer] = {
+                            VfxProbabilityTableData {}
+                            VfxProbabilityTableData {
+                                keyTimes: list[f32] = {
+                                    0
+                                    1
+                                }
+                                keyValues: list[f32] = {
+                                    0.5
+                                    2
+                                }
+                            }
+                            VfxProbabilityTableData {}
+                        }
+                        times: list[f32] = {
+                            0
+                        }
+                        values: list[vec3] = {
+                            { 120, 120, 20 }
+                        }
+                    }
+                }
+                scale0: embed = ValueVector3 {
+                    dynamics: pointer = VfxAnimatedVector3fVariableData {
+                        times: list[f32] = {
+                            0
+                            1
+                        }
+                        values: list[vec3] = {
+                            { 1, 1, 1 }
+                            { 1, 2, 1 }
+                        }
+                    }
+                }
+                texture: string = "ASSETS/Shared/Particles/Global_Summoner_Recall_Streak_02.tex"
+                numFrames: u16 = 4
+            }
+            VfxEmitterDefinitionData {
+                rate: embed = ValueFloat {
+                    constantValue: f32 = 2
+                    dynamics: pointer = VfxAnimatedFloatVariableData {
+                        times: list[f32] = {
+                            0
+                            0.665
+                            0.66501
+                            1
+                        }
+                        values: list[f32] = {
+                            0
+                            0
+                            2
+                            20
+                        }
+                    }
+                }
+                particleLifetime: embed = ValueFloat {
+                    constantValue: f32 = 0.5
+                }
+                lifetime: option[f32] = {
+                    10
+                }
+                emitterName: string = "Finale_UpRings"
+                birthVelocity: embed = ValueVector3 {
+                    constantValue: vec3 = { 0, 300, 0 }
+                    dynamics: pointer = VfxAnimatedVector3fVariableData {
+                        times: list[f32] = {
+                            0
+                            0.665
+                            0.66501
+                            1
+                        }
+                        values: list[vec3] = {
+                            { 0, 300, 0 }
+                            { 0, 300, 0 }
+                            { 0, 300, 0 }
+                            { 0, 3000, 0 }
+                        }
+                    }
+                }
+                worldAcceleration: embed = IntegratedValueVector3 {
+                    constantValue: vec3 = { 0, 1000, 0 }
+                    dynamics: pointer = VfxAnimatedVector3fVariableData {
+                        times: list[f32] = {
+                            0
+                        }
+                        values: list[vec3] = {
+                            { 0, 1000, 0 }
+                        }
+                    }
+                }
+                SpawnShape: pointer = VfxShapeLegacy {}
+                primitive: pointer = VfxPrimitiveArbitraryQuad {}
+                particleColorTexture: string = "ASSETS/Shared/Particles/Global_Summoner_Recall_Color_BlueFade.tex"
+                miscRenderFlags: u8 = 1
+                isGroundLayer: flag = true
+                birthRotation0: embed = ValueVector3 {
+                    constantValue: vec3 = { 90, 0, 0 }
+                }
+                birthScale0: embed = ValueVector3 {
+                    constantValue: vec3 = { 120, 120, 120 }
+                    dynamics: pointer = VfxAnimatedVector3fVariableData {
+                        times: list[f32] = {
+                            0
+                            0.5
+                            0.5001
+                        }
+                        values: list[vec3] = {
+                            { 0, 0, 0 }
+                            { 0, 0, 0 }
+                            { 120, 120, 120 }
+                        }
+                    }
+                }
+                texture: string = "ASSETS/Shared/Particles/Global_Summoner_Recall_PulseRing.tex"
+            }
+        }
+        simpleEmitterDefinitionData: list[pointer] = {
+            VfxEmitterDefinitionData {
+                rate: embed = ValueFloat {
+                    constantValue: f32 = 1
+                }
+                particleLifetime: embed = ValueFloat {
+                    constantValue: f32 = 8
+                }
+                particleLinger: option[f32] = {
+                    0.5
+                }
+                lifetime: option[f32] = {
+                    8
+                }
+                isSingleParticle: flag = true
+                emitterName: string = "ring"
+                SpawnShape: pointer = VfxShapeLegacy {}
+                particleColorTexture: string = "ASSETS/Shared/Particles/Global_Summoner_Recall_Color_Fade.tex"
+                meshRenderFlags: u8 = 0
+                miscRenderFlags: u8 = 1
+                isGroundLayer: flag = true
+                texture: string = "ASSETS/Shared/Particles/Global_Summoner_Recall_Ring.tex"
+                LegacySimple: pointer = VfxEmitterLegacySimple {
+                    birthScale: embed = ValueFloat {
+                        constantValue: f32 = 200
+                    }
+                    scale: embed = ValueFloat {
+                        dynamics: pointer = VfxAnimatedFloatVariableData {
+                            times: list[f32] = {
+                                0
+                                0.08
+                                0.17
+                                0.25
+                                0.4
+                                1
+                            }
+                            values: list[f32] = {
+                                0.2
+                                0.7
+                                0.9
+                                1
+                                1
+                                0.6
+                            }
+                        }
+                    }
+                    birthRotationalVelocity: embed = ValueFloat {
+                        constantValue: f32 = 250
+                    }
+                    orientation: u8 = 2
+                }
+            }
+        }
+        particleName: string = "{RECALL_NAME}"
+        particlePath: string = "{RECALL_KEY}"
+        overrideScaleCap: option[f32] = {
+            -1
+        }
+        soundPersistentDefault: string = "Play_sfx_Recall_Shared_buffactivate"
+        flags: u16 = 196
+        objectPath: hash = "{RECALL_KEY}"
+    }
