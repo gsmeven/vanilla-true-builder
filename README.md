@@ -178,7 +178,7 @@ RAW_TRANSPARENT_TEX_BYTES = (
 ```
 
 > [!NOTE]
-> This micro-texture is used only when unavoidable—specifically for auto-instantiated Clash banners, esports stage banners, and Summoner trophies in `Global.wad.client`. Because the client loads these loadout entities regardless of player ownership, suppressing them safely requires a valid texture path. All other clutter is handled 100% natively without external assets via shader alpha discard and particle severing (Item 2).
+> This micro-texture is used only for auto-instantiated Clash banners/trophies and esports stage banners in `Global.wad.client`. Because the client loads these loadout entities regardless of player ownership, suppressing them safely requires a valid texture path. All other clutter is handled 100% natively without external assets via shader alpha discard and particle severing (Item 2).
 
 ### 5. SHA256 Cache (`_is_cache_valid`)
 VTB avoids redundant re-compilation across League patches via an dual-signature validation layer:
