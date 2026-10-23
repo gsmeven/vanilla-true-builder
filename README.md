@@ -196,17 +196,18 @@ VTB natively bridges legacy and modern toolchains. Upon initialization, the engi
 
 This dynamic adapter prevents toolchain breakage across automated CI/CD updates and community forks.
 
-### 7. Smart Multi-Core Processing
+### 7. Multi-Core Processing (`MAX_PARALLEL_WAD_JOBS`)
 Processing over 160 champions and monolithic map archives sequentially would take hours. VTB leverages a multi-process architecture:
 * **Dynamic Core Scaling:** Allocates CPU workers dynamically via `MAX_PARALLEL_WAD_JOBS = max(1, int(CPU_COUNT * 0.60))`, preventing system freezes while maximizing throughput.
 * **Isolated Scratch Workspace:** All decompression and extraction tasks execute in a dedicated system `%TEMP%` buffer (`VanillaTrueTemp`) guarded by `atexit` and `SIGINT`/`SIGTERM` signal handlers.
 * **Selective Regex Extraction:** Uses targeted regex filters (`-x` flag) in `wadtools` to decompress exclusively relevant skin `.bin` and `.skn` assets, bypassing gigabytes of animations, voiceovers, and soundbanks.
 
-### 8. Autonomous Toolchain CI/CD 
-VTB maintains its own dependencies autonomously:
-* **ETag Conditional Synchronization:** Hashes and tool archives are queried via HTTP headers (`If-None-Match`). If the server returns HTTP `304 Not Modified`, bandwidth and IO are spared.
-* **Monolithic Game Hash Assembly:** Downloads CommunityDragon hash chunks (`hashes.game.txt.0`, `.1`, etc.) and seamlessly reconstructs the monolithic hash container locally.
-* **Silent Windows In-Place Hot-Swap:** When a newer release is published on GitHub, VTB downloads the updated package in the background, renames the running process to `_old.exe`, moves the new binary into place, spawns the updated instance, and terminates the parent cleanly.
+### 8. Toolchain CI/CD & Synchronization
+VTB maintains its entire operational dependency stack autonomously without manual user intervention:
+* **Self-Update ([`vanilla-true-builder`](https://github.com/gsmeven/vanilla-true-builder)):** When a newer application release is published on GitHub, VTB downloads the updated package in the background, renames the running process to `_old.exe`, moves the new binary into place, spawns the updated instance, and terminates the parent cleanly.
+* **Toolchain ([`vtb-ltk-tools`](https://github.com/gsmeven/vtb-ltk-tools)):** Rather than bundling static, outdated binaries or requiring users to compile C++ and Rust toolchains locally, VTB synchronizes directly with a dedicated CI/CD repository that continuously tracks, builds, and distributes hardened 64-bit Windows binaries of `wadtools.exe` and `ritobin.exe` via automated release packages (`tools.zip`).
+* **Synchronization:** Hash containers and tool archives are queried using HTTP conditional headers (`If-None-Match`). If upstream endpoints return HTTP `304 Not Modified`, redundant downloads, disk writes, and bandwidth consumption are eliminated in 0ms.
+* **Hash Assembly:** Automatically detects, downloads, and merges segmented CommunityDragon hash streams (`hashes.game.txt.0`, `.1`, etc.) into a unified local hash container required for accurate asset-path resolution in `wadtools`.
 
 ### 9. Structural Integrity
 Restoring structures and minions is not a simple "force Skin0" replacement. Naive mods that overwrite all structures with Skin 0 cause catastrophic visual bugs, such as Red (Chaos) turrets displaying Blue (Order) models, confusing players and ruining team readability.
