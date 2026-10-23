@@ -2480,7 +2480,7 @@ def create_standalone_fantome(
 
 	# 1. DETAILS (CLEAN INLINE TEXT FOR INFO.JSON)
 	if active_modules:
-		desc_str = f"MODULES ACTIVE: {', '.join(active_modules)}."
+		desc_str = f"ACTIVE MODULES: {', '.join(active_modules)}."
 	else:
 		desc_str = "Vanilla True Mod - Custom Build."
 

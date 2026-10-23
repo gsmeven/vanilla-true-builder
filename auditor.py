@@ -2268,7 +2268,7 @@ class ChampionAuditorApp:
 					readme_md = f"""### 🧪 Auditor Package
 > Isolated build for **{champ.capitalize()} (Skin{skin_id})**.
 
-Compiled via [Vanilla True Builder](https://github.com/gsmeven/vanilla-true-builder).
+Compiled and packaged via **[Vanilla True Builder](https://github.com/gsmeven/vanilla-true-builder)** by **[Neve](https://github.com/gsmeven)**.
 """
 
 					license_text = """Copyright (c) 2026 Neve / Vanilla True Builder
