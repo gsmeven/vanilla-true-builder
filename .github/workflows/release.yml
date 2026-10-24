@@ -19,8 +19,8 @@ permissions:
   contents: write
 
 jobs:
+  # Target execution host for native Win32/x64 toolchains
   build-windows:
-    # Target execution host for native Win32/x64 toolchains
     runs-on: windows-latest
 
     steps:
@@ -40,7 +40,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyinstaller pillow
 
-      # Parse canonical application version for release tagging
+      # Parse application version for release tagging
       - name: Extract Project Version
         id: get_version
         shell: pwsh
@@ -53,7 +53,7 @@ jobs:
             }
           }
           if (-not $ver.StartsWith("v")) { $ver = "v" + $ver }
-          Write-Host "Target Release Version: $ver"
+          Write-Host "Detected Version: $ver"
           "RELEASE_VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       # Compile single-file executable with embedded assets and dynamic imports
@@ -89,15 +89,7 @@ jobs:
 
           Compress-Archive -Path $folderName -DestinationPath "VanillaTrueBuilder.zip" -Force
 
-      # Generate cryptographic SHA-256 hash for binary integrity validation
-      - name: Generate SHA-256 Checksum
-        shell: pwsh
-        run: |
-          $hash = (Get-FileHash -Path "VanillaTrueBuilder.zip" -Algorithm SHA256).Hash.ToLower()
-          "$hash  VanillaTrueBuilder.zip" | Out-File -FilePath "checksums.txt" -Encoding ascii
-          Write-Host "SHA-256: $hash"
-
-      # Create GitHub Release with predefined template and attach distribution files
+      # Create GitHub Release with predefined template and attach distribution zip
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -119,8 +111,6 @@ jobs:
             * **`VanillaTrueBuilder.exe`** - Main + Auditor (**`SKIN FIX`**).
             * **`ai_context.md`** - Prompt engineering context for AI skin curation.
             * **`overrides/`** - Curated native engine templates for complex skins.
-          files: |
-            VanillaTrueBuilder.zip
-            checksums.txt
+          files: VanillaTrueBuilder.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
