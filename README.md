@@ -18,7 +18,7 @@
 [🧰 Modules](#-modules) •
 [⚙️ Core Technical](#️-core-technical) •
 [🏗️ Architecture](#️-architecture) •
-[🔬 Forensic Curation](#-forensic-curation) •
+[🔬 Skin Curation](#-skin-curation) •
 [👥 Ecosystem & Credits](#-author--ecosystem)
 
 <img src="preview.jpg" alt="Vanilla True Builder Hextech Dashboard" width="850px" style="border-radius: 8px; border: 1px solid #1a2530; box-shadow: 0 8px 24px rgba(0,0,0,0.6);" />
@@ -31,7 +31,7 @@
 
 Traditional custom mods often rely on hacky placeholder textures, foreign dummy meshes, or destructive overrides that trigger DirectX crashes and hitbox desynchronization. Instead, VTB operates natively on official Riot archives using reverse-engineering toolchains [ritobin](https://github.com/LeagueToolkit/ritobin-tools) & [wadtools](https://github.com/LeagueToolkit/wadtools).
 
-The engine performs surgical, in-place property patching—modifying strictly what is necessary and rebinding champion rigs, faction structures, minions, and wards canonically to the game's own native Base definitions already compiled in your client. No third-party assets are ever imported: whenever an asset is strictly required to neutralize visual clutter, it is synthesized on the fly via raw hexadecimal bytecode (such as hardware-compliant 144-byte assets). This guarantees zero foreign bloat, flawless client stability, and a completely purified default experience.
+The engine performs surgical, in-place property patching, modifying strictly what is necessary and rebinding champion skins, Order and Chaos faction entities (structures, rubble, and minions), vision wards, Clash banners, and special recalls canonically to the game's own native Base definitions already compiled in your client. No third-party assets are ever imported: whenever an asset is strictly required to neutralize visual clutter, it is synthesized on the fly via raw hexadecimal bytecode (such as hardware-compliant 144-byte assets). This guarantees zero foreign bloat, flawless game stability, and a completely purified default experience.
 
 > [!IMPORTANT]
 > * **First-Time Build Duration:** The initial compilation takes a few minutes as VTB processes and sanitizes multiple WADs in parallel.
@@ -92,7 +92,7 @@ cd vanilla-true-builder
 # 2. Launch Master Builder
 python main.py
 
-# 3. Launch Forensic Auditor directly
+# 3. Launch Auditor directly
 python auditor.py
 ```
 
@@ -266,8 +266,8 @@ flowchart TD
 * **Progress Scheduling:** Multi-phase weighted progress calculation across Map11, UI/Global, Champion batches, and `.fantome` packaging.
 * **Hextech GUI:** Custom-styled, frameless Tkinter window with native Windows API interop (`ctypes.windll.user32`) providing smooth window dragging, snapping, minimize/maximize logic, and console telemetry.
 
-### `auditor.py` — Forensic Curation
-A standalone forensic laboratory for skin analysis and instant curation:
+### `auditor.py` — Skin Curation
+A suite for skin analysis and instant curation (AI assist):
 * **Real Causality Filter:** Differentiates between benign linear models and real mechanical divergences.
 * **Skin Diffing:** Flags custom rigs (`custom_skl`) and custom animation controllers (`custom_graph`).
 * **Satellite Telemetry:** Discovers combat pets and deployables (`extraCharacterPreloads`), extracting persistent idle keys (`idleParticlesEffects`).
@@ -279,7 +279,7 @@ A standalone forensic laboratory for skin analysis and instant curation:
 ### `overrides/` — Curated Templates
 A version-controlled directory of hand-crafted templates for legendary and ultimate skins requiring non-linear state machine handling (e.g., Blackfrost Anivia, True Damage Ekko). Includes pre-configured `# VARIANTS:` and `# SUBMESH_ALIAS:` headers.
 
-## 🔬 Forensic Curation
+## 🔬 Skin Curation (AI)
 
 In traditional League of Legends modding, fixing broken animations, invisible models, or desynchronized spell meshes on complex legendary and ultimate skins required hours of manual reverse-engineering, hex-editing `.skn` headers, and inspecting memory structures.
 

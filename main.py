@@ -34,13 +34,9 @@ except Exception:
 
 LOG = logging.getLogger("vanilla_builder")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
+from version import APP_VERSION
 
-# ==============================================================================
-# PIPELINE CONFIGURATION & CANONICAL CACHE IDENTIFIER
-# ==============================================================================
 PIPELINE_CORE_VERSION = "2026_vanilla_v83_submesh_contract_engine"
-
-APP_VERSION = "v1.8.3"
 GITHUB_REPO_URL = "https://github.com/gsmeven/vanilla-true-builder"
 GITHUB_LATEST_API = "https://api.github.com/repos/gsmeven/vanilla-true-builder/releases/latest"
 

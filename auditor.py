@@ -21,13 +21,12 @@ from pathlib import Path
 from typing import Callable
 import tkinter as tk
 from tkinter import messagebox, ttk
+from version import APP_VERSION
 
 if getattr(sys, "frozen", False):
 	WORKSPACE_ROOT = Path(sys.executable).resolve().parent
 else:
 	WORKSPACE_ROOT = Path(__file__).resolve().parent
-
-APP_VERSION = "v1.8.3"	
 
 OVERRIDES_DIR = WORKSPACE_ROOT / "overrides"
 REPORT_FILE = WORKSPACE_ROOT / "auditor_ledger.log"
