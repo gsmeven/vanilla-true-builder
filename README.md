@@ -74,7 +74,7 @@ The engine performs surgical, in-place property patching, modifying strictly wha
 * **Start in tray unless update available:** `ON` *(Keeps LTK completely hidden in the system tray upon startup)*
 * **Always start patcher at launch:** `ON` *(Automatically mounts and starts your active profile whenever the app launches)*
 
-> [!NOTE]
+> [!WARNING]
 > **"Unexplained Game Exit [GAME STOPPED]"** is a harmless cosmetic notice that occurs if your PC is shut down while the patcher was active without entering a match. 
 > Ignore or simply click **Dismiss** and launch League normally (Your mod is completely functional).
 
