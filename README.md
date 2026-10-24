@@ -68,7 +68,7 @@ The engine performs surgical, in-place property patching, modifying strictly wha
     * Double-click the row to open the override file, paste the AI-generated template, and save.
     * Click **`TEST`** inside the Auditor to compile and test an isolated `.fantome` package instantly!
 
-**Recommended LTK Manager Setup** 
+### 🎛️ Recommended LTK Manager Setup 
 
 * **Auto run:** `ON` *(Automatically launches LTK Manager when you start Windows)*
 * **Start in tray unless update available:** `ON` *(Keeps LTK completely hidden in the system tray upon startup)*
