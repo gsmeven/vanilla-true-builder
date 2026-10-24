@@ -1,7 +1,7 @@
 name: Build & Publish Release
 run-name: Build & Publish Release #${{ github.run_number }} by @${{ github.actor }}
 
-# Pipeline trigger specifications
+# Pipeline triggers
 on:
   push:
     branches:
@@ -14,33 +14,32 @@ on:
       - 'rakuzan.ico'
   workflow_dispatch:
 
-# Token permission model for release artifact generation
+# Target repository write permissions for releases
 permissions:
   contents: write
 
 jobs:
   build-windows:
-    # Target execution host for native Win32/x64 toolchains
     runs-on: windows-latest
 
     steps:
-      # Synchronize repository tree
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Runtime environment setup
+      # Runtime setup with dependency caching
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
-      # Build toolchain and asset dependencies
+      # Install packaging toolchains
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller pillow
 
-      # Resolve semantic release version from application source
+      # Parse canonical application version for release tagging
       - name: Extract Project Version
         id: get_version
         shell: pwsh
@@ -53,10 +52,10 @@ jobs:
             }
           }
           if (-not $ver.StartsWith("v")) { $ver = "v" + $ver }
-          Write-Host "Detected Version: $ver"
+          Write-Host "Target Release Version: $ver"
           "RELEASE_VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      # Compile single-file windowed binary with embedded assets and dynamic imports
+      # Compile single-file executable with embedded assets and imports
       - name: Build Standalone Executable
         shell: pwsh
         run: |
@@ -68,7 +67,7 @@ jobs:
             --hidden-import "auditor" `
             main.py
 
-      # Assemble release distribution staging directory and compress archive
+      # Assemble distribution directory and generate zip archive
       - name: Package VanillaTrueBuilder.zip
         shell: pwsh
         run: |
@@ -89,7 +88,15 @@ jobs:
 
           Compress-Archive -Path $folderName -DestinationPath "VanillaTrueBuilder.zip" -Force
 
-      # Deploy release metadata and binaries to GitHub Releases
+      # Generate cryptographic checksum for release verification
+      - name: Generate SHA-256 Checksum
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash -Path "VanillaTrueBuilder.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  VanillaTrueBuilder.zip" | Out-File -FilePath "checksums.txt" -Encoding ascii
+          Write-Host "SHA-256: $hash"
+
+      # Publish artifacts to GitHub Releases
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -97,6 +104,7 @@ jobs:
           name: "Vanilla True Builder ${{ env.RELEASE_VERSION }}"
           draft: false
           prerelease: false
+          make_latest: true
           body: |
             #### ⚡️ Quick Installation:
             1. Download and extract **`VanillaTrueBuilder.zip`** below.
@@ -110,6 +118,8 @@ jobs:
             * **`VanillaTrueBuilder.exe`** - Main + Auditor (**`SKIN FIX`**).
             * **`ai_context.md`** - Prompt engineering context for AI skin curation.
             * **`overrides/`** - Curated native engine templates for complex skins.
-          files: VanillaTrueBuilder.zip
+          files: |
+            VanillaTrueBuilder.zip
+            checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
