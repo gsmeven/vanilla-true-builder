@@ -28,12 +28,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Runtime environment setup with pip package caching
+      # Runtime environment setup
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       # Build packaging and asset processing dependencies
       - name: Install Dependencies
@@ -47,12 +46,7 @@ jobs:
         shell: pwsh
         run: |
           $ver = "v1.8.3"
-          if (Test-Path "version.py") {
-            $match = Select-String -Path "version.py" -Pattern 'APP_VERSION\s*=\s*["'']([^"'']+)["'']'
-            if ($match -and $match.Matches.Groups[1].Value) {
-              $ver = $match.Matches.Groups[1].Value.Trim()
-            }
-          } elseif (Test-Path "main.py") {
+          if (Test-Path "main.py") {
             $match = Select-String -Path "main.py" -Pattern 'APP_VERSION\s*=\s*["'']([^"'']+)["'']'
             if ($match -and $match.Matches.Groups[1].Value) {
               $ver = $match.Matches.Groups[1].Value.Trim()
@@ -72,7 +66,6 @@ jobs:
             --add-data "rakuzan.ico;." `
             --add-data "preview.jpg;." `
             --hidden-import "auditor" `
-            --hidden-import "version" `
             main.py
 
       # Assemble distribution directory and generate compressed zip archive
