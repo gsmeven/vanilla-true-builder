@@ -18,7 +18,7 @@
 [🧰 Modules](#-modules) •
 [⚙️ Core Technical](#️-core-technical) •
 [🏗️ Architecture](#️-architecture) •
-[🔬 Skin Curation](#-skin-curation) •
+[🔬 Skin Curation](#-ai-skin-curation) •
 [👥 Ecosystem & Credits](#-author--ecosystem)
 
 <img src="preview.jpg" alt="Vanilla True Builder Hextech Dashboard" width="850px" style="border-radius: 8px; border: 1px solid #1a2530; box-shadow: 0 8px 24px rgba(0,0,0,0.6);" />
@@ -31,7 +31,7 @@
 
 Traditional custom mods often rely on hacky placeholder textures, foreign dummy meshes, or destructive overrides that trigger DirectX crashes and hitbox desynchronization. Instead, VTB operates natively on official Riot archives using reverse-engineering toolchains [ritobin](https://github.com/LeagueToolkit/ritobin-tools) & [wadtools](https://github.com/LeagueToolkit/wadtools).
 
-The engine performs surgical, in-place property patching, modifying strictly what is necessary and rebinding champion skins, Order and Chaos faction entities (structures, rubble, and minions), vision wards, Clash banners, and special recalls canonically to the game's own native Base definitions already compiled in your client. No third-party assets are ever imported: whenever an asset is strictly required to neutralize visual clutter, it is synthesized on the fly via raw hexadecimal bytecode (such as hardware-compliant 144-byte assets). This guarantees zero foreign bloat, flawless game stability, and a completely purified default experience.
+The engine performs surgical, in-place property patching, modifying strictly what is necessary and rebinding champion skins, Order and Chaos faction entities (structures, rubble, and minions), vision wards, Clash banners, and special recalls canonically to the game's own native Base definitions already compiled in your game. No third-party assets are ever imported: whenever an asset is strictly required to neutralize visual clutter, it is synthesized on the fly via raw hexadecimal bytecode (such as hardware-compliant 144-byte assets). This guarantees zero foreign bloat, flawless game stability, and a completely purified default experience.
 
 > [!IMPORTANT]
 > * **First-Time Build Duration:** The initial compilation takes a few minutes as VTB processes and sanitizes multiple WADs in parallel.
@@ -39,7 +39,7 @@ The engine performs surgical, in-place property patching, modifying strictly wha
 > * **LTK Game Overlay:** When patching **for the first time**, LTK Manager constructs a staged game overlay requiring **~21 GB of disk space** and takes a few minutes to finish. This initial duration and storage footprint are inherent characteristics of LTK's virtual filesystem.
 > * **Hash Cache:** Validated via `WAD_HASH:SCRIPT_HASH`. Subsequent builds are near-instant, maintaining a compact local cache (**~1 GB**) of strictly necessary decompiled game files.
 > * **Patch-Resilient:** Intelligent patch tracking monitors your root `.fantome` file against live game archives. You only need to run **`BUILD PACKAGE`** when prompted, updating altered files in seconds.
-> * **Skin Curation:** Over **95% of champion skins revert automatically**. Edge cases with unique submeshes or animation conflicts can be resolved in under two minutes via the built-in Auditor (**`SKIN FIX`**) and reasoning AI.
+> * **AI Skin Curation:** Over **95% of champion skins revert automatically**. Edge cases with unique submeshes or animation conflicts can be resolved in under two minutes via the built-in Auditor (**`SKIN FIX`**) and reasoning AI.
 
 ## 📌 Setup
 
@@ -105,13 +105,13 @@ Every restoration module can be toggled independently to match your restoration 
 
 | Module | Target Scope | Technical Implementation | Experience Expected |
 | :--- | :--- | :--- | :--- |
-| [**Champions**](#-1-champions) | All champion skins | Rebinds animation graph to `Skin0`, clones base rig/mesh properties, resets CAC, and injects in-place submesh aliases. | Canonical base animations, uniform silhouettes, and original spell readability. |
-| [**Structures**](#-2-structures) | Turrets, Rubble, Inhibitors, Nexus, Shopkeepers | Reverts team structures to default Order/Chaos bases; preserves ARAM/Bilgewater logic through structural integrity filters. | Base structures with canonical models. |
-| [**Minions**](#-3-minions) | Melee, Ranged, Siege, and Super Minions | Re-indexes skin assignments to Faction IDs 0 and 1 without full map decompilation bloat. | Canonical minion silhouettes and wave readability. |
-| [**Wards**](#-4-wards) | Sight, Yellow Trinket, Control/Jammer, Blue Trinket | Re-maps ward skin hashes to default base models across all inventory items. | Default ward silhouettes with uniform, canonical models. |
+| [**Champions**] | All champion skins | Rebinds animation graph to `Skin0`, clones base rig/mesh properties, resets CAC, and injects in-place submesh aliases. | Canonical base animations, uniform silhouettes, and original spell readability. |
+| [**Structures**] | Turrets, Rubble, Inhibitors, Nexus, Shopkeepers | Reverts team structures to default Order/Chaos bases; preserves ARAM/Bilgewater logic through structural integrity filters. | Base structures with canonical models. |
+| [**Minions**] | Melee, Ranged, Siege, and Super Minions | Re-indexes skin assignments to Faction IDs 0 and 1 without full map decompilation bloat. | Canonical minion silhouettes and wave readability. |
+| [**Wards**] | Sight, Yellow Trinket, Control/Jammer, Blue Trinket | Re-maps ward skin hashes to default base models across all inventory items. | Default ward silhouettes with uniform, canonical models. |
 | [**Map Accents**](#-5-map-accents) | Clash banners, Worlds trophies, sponsor ads, godrays | Intercepts `mWorldParticlesINI`, neutralizes `StaticMaterialDef` diffuse passes, and assigns 144-byte assets. | Vanilla Rift with zero billboard clutter. |
-| [**Nexus Finishers**](#-6-nexus-finishers) | Victory/Defeat cinematic overlays and audio banks | Clears `complexEmitterDefinitionData`, sets `m_Enabled = false`, and purges end-of-game audio banks in `UI.wad.client`. | Default victory/defeat screen pan across every match, without cinematic interruptions. |
-| [**Special Recalls**](#-7-special-recalls) | Honor 5 & Challenger recall crests | Rewrites shared telemetry blocks in `Global.wad.client` to enforce canonical home recall VFX. | Classic recall VFX, no additional aura crests. |
+| [**Nexus Finishers**] | Victory/Defeat cinematic overlays and audio banks | Clears `complexEmitterDefinitionData`, sets `m_Enabled = false`, and purges end-of-game audio banks in `UI.wad.client`. | Default victory/defeat screen pan across every match, without cinematic interruptions. |
+| [**Special Recalls**] | Honor 5 & Challenger recall crests | Rewrites shared telemetry blocks in `Global.wad.client` to enforce canonical home recall VFX. | Classic recall VFX, no additional aura crests. |
 
 ## ⚙️ Core Technical
 
@@ -196,7 +196,7 @@ VTB avoids redundant re-compilation across League patches via a dual-signature v
 $$\text{Cache Validity} = (\text{WAD\_HASH} = \text{Current WAD}) \land (\text{SCRIPT\_HASH} = \text{Engine Fingerprint})$$
 
 * **Archive Fingerprint:** Calculates a composite SHA-256 signature from the target WAD's resolved POSIX path, byte size, and nanosecond modification time (`st_mtime_ns`).
-* **Pipeline Engine Fingerprint:** Truncated SHA-256 derived from `PIPELINE_CORE_VERSION`. If the VTB pipeline or submesh contract engine code updates, obsolete caches invalidate automatically.
+* **Pipeline Engine Fingerprint:** Truncated SHA-256 derived from `APP_VERSION`. If the VTB pipeline or submesh contract engine code updates, obsolete caches invalidate automatically.
 * **Master Flat Storage:** Cached outputs are stored in flat directories (`cache/<wad_name>/.hash`), allowing unchanged archives to bypass extraction, decompilation, sanitization, and recompilation in **0ms**.
 
 ### 6. Dynamic Adapter (Rust & C++ Ritobin)
@@ -266,7 +266,7 @@ flowchart TD
 * **Progress Scheduling:** Multi-phase weighted progress calculation across Map11, UI/Global, Champion batches, and `.fantome` packaging.
 * **Hextech GUI:** Custom-styled, frameless Tkinter window with native Windows API interop (`ctypes.windll.user32`) providing smooth window dragging, snapping, minimize/maximize logic, and console telemetry.
 
-### `auditor.py` — Skin Curation
+### `auditor.py` — Skin Curation & Test
 A suite for skin analysis and instant curation (AI assist):
 * **Real Causality Filter:** Differentiates between benign linear models and real mechanical divergences.
 * **Skin Diffing:** Flags custom rigs (`custom_skl`) and custom animation controllers (`custom_graph`).
@@ -279,7 +279,7 @@ A suite for skin analysis and instant curation (AI assist):
 ### `overrides/` — Curated Templates
 A version-controlled directory of hand-crafted templates for legendary and ultimate skins requiring non-linear state machine handling (e.g., Blackfrost Anivia, True Damage Ekko). Includes pre-configured `# VARIANTS:` and `# SUBMESH_ALIAS:` headers.
 
-## 🔬 Skin Curation (AI)
+## 🔬 AI Skin Curation
 
 In traditional League of Legends modding, fixing broken animations, invisible models, or desynchronized spell meshes on complex legendary and ultimate skins required hours of manual reverse-engineering, hex-editing `.skn` headers, and inspecting memory structures.
 
