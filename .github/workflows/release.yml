@@ -1,13 +1,20 @@
 name: Build & Publish Release
-run-name: Build Standalone Release ${{ github.event.release.tag_name }}
+run-name: Build & Publish Release #${{ github.run_number }} by @${{ github.actor }}
 
 # Pipeline trigger specifications
 on:
-  release:
-    types: [published]
+  push:
+    branches:
+      - main
+    paths:
+      - '**.py'
+      - 'ai_context.md'
+      - 'overrides/**'
+      - 'preview.jpg'
+      - 'rakuzan.ico'
   workflow_dispatch:
 
-# Repository token permissions for release asset publishing
+# Repository token permissions for release creation and asset upload
 permissions:
   contents: write
 
@@ -34,19 +41,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyinstaller pillow
 
-      # Inject release tag into version.py prior to executable compilation
-      - name: Inject Release Version
+      # Parse canonical application version for release tagging
+      - name: Extract Project Version
+        id: get_version
         shell: pwsh
         run: |
-          $ver = "${{ github.event.release.tag_name }}"
-          if (-not $ver) {
-            $ver = "v1.8.3"
+          $ver = "v1.8.3"
+          if (Test-Path "version.py") {
+            $match = Select-String -Path "version.py" -Pattern 'APP_VERSION\s*=\s*["'']([^"'']+)["'']'
+            if ($match -and $match.Matches.Groups[1].Value) {
+              $ver = $match.Matches.Groups[1].Value.Trim()
+            }
+          } elseif (Test-Path "main.py") {
+            $match = Select-String -Path "main.py" -Pattern 'APP_VERSION\s*=\s*["'']([^"'']+)["'']'
+            if ($match -and $match.Matches.Groups[1].Value) {
+              $ver = $match.Matches.Groups[1].Value.Trim()
+            }
           }
-          if (-not $ver.StartsWith("v")) {
-            $ver = "v" + $ver
-          }
-          Write-Host "Compiling version: $ver"
-          "APP_VERSION = '$ver'" | Out-File -FilePath "version.py" -Encoding utf8
+          if (-not $ver.StartsWith("v")) { $ver = "v" + $ver }
+          Write-Host "Target Release Version: $ver"
+          "RELEASE_VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       # Compile single-file executable with embedded assets and dynamic imports
       - name: Build Standalone Executable
@@ -90,10 +104,28 @@ jobs:
           "$hash  VanillaTrueBuilder.zip" | Out-File -FilePath "checksums.txt" -Encoding ascii
           Write-Host "SHA-256: $hash"
 
-      # Attach distribution archive and checksum directly to the published release
-      - name: Upload Release Assets
+      # Create GitHub Release with predefined template and attach distribution files
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_VERSION }}
+          name: "Vanilla True Builder ${{ env.RELEASE_VERSION }}"
+          draft: false
+          prerelease: false
+          make_latest: true
+          body: |
+            #### ⚡️ Quick Installation:
+            1. Download and extract **`VanillaTrueBuilder.zip`** below.
+            2. Run **`VanillaTrueBuilder.exe`**.
+            3. Select your desired restoration modules (or **Select All**) and click **`BUILD PACKAGE (.FANTOME)`**.
+            4. Drag the generated **`VanillaTrueMod.fantome`** into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it!
+
+            ---
+
+            #### 📦 Package Contents:
+            * **`VanillaTrueBuilder.exe`** - Main + Auditor (**`SKIN FIX`**).
+            * **`ai_context.md`** - Prompt engineering context for AI skin curation.
+            * **`overrides/`** - Curated native engine templates for complex skins.
           files: |
             VanillaTrueBuilder.zip
             checksums.txt
