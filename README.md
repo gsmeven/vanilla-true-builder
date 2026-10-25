@@ -55,7 +55,7 @@ Operating on a strict non-invasive doctrine, VTB imports zero external assets. E
    Click **`📁 OPEN FANTOME FOLDER`**, drag `VanillaTrueMod.fantome` into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it!
 
 ### 🩺 How to Fix a Problematic Skin
-If any skin has model vanishing, submesh, or animation issues, you can curate it in under two minutes with AI assistance:
+If any skin has visual issues, you can curate it in under 2 minutes with AI assistance:
 
 1. Click **`SKIN FIX`** in the top-right corner of the main app to launch the **Auditor**.
 2. Drag-and-drop, upload, or copy the contents of `ai_context.md` from your root folder.
