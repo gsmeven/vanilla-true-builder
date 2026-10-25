@@ -4,25 +4,27 @@ Thank you for your interest in contributing to **Vanilla True Builder (VTB)**.
 
 VTB is an automated visual restoration engine for League of Legends. Over **95% of champion skins revert automatically** via `main.py` without manual intervention. Contributions are focused on curating the remaining edge cases (legendaries with unique state machines, decoupled deployable satellites, and submesh divergences) or refining curation laws.
 
-## 🔍️ Contribution Scopes
+## Contribution Scopes
 
 Contributions are accepted within the following scopes:
 
 1. **Curated Overrides (`overrides/`):** Property templates for edge-case skins and combat satellites using the native Auditor toolchain.
 2. **Curation Logic & Laws (`ai_context.md`):** Proposals to improve the *10 Laws of Curation*.
-   > **Stability Baseline:** The 10 Laws have proven universally resilient in resolving model vanishing, weapon desyncs, and animation locks with zero DirectX or client crashes. Proposed adjustments must maintain this stability standard.
 
-## 🛂 Mandatory Curation Workflow
+> [!NOTE]
+> **Stability Baseline:** The 10 Laws have proven universally resilient in resolving model vanishing, weapon desyncs, and animation locks with zero DirectX or client crashes. Proposed adjustments must maintain this stability standard.
+
+## Mandatory Curation Workflow
 
 All skin overrides submitted to `overrides/` must follow the diagnostic pipeline before opening a Pull Request:
 
 ```mermaid
 flowchart LR
-    A["1. AUDIT (auditor.py)"] --> B["2. AI TRIAGE (COPY REPORT)"]
-    B --> C["3. PAYLOAD (Copy payload)"]
-    C --> D["4. EDIT & SAVE (overrides/)"]
-    D --> E["5. IN-GAME TEST (TEST Button)"]
-    E --> F["6. PULL REQUEST 🔀"]
+    A["1. Audit\nauditor.py"] --> B["2. Triage\nCOPY REPORT"]
+    B --> C["3. Payload\nCopy payload"]
+    C --> D["4. Draft\noverrides/"]
+    D --> E["5. Test\nTEST button"]
+    E --> F["6. Submit\nPull Request"]
 ```
 
 1. **Audit:** Select champion and skin in `auditor.py`, click **`AUDIT`**, and identify custom skeletons, animation controllers, or submesh discrepancies.
@@ -31,7 +33,7 @@ flowchart LR
 4. **Test:** Click **`TEST`** in `auditor.py` to compile an isolated `.fantome` package. Verify in-game via LTK Manager that animations, hitboxes, and geometry render canonically.
 5. **Submit:** Commit strictly the validated `.bin.txt` file and submit a Pull Request.
 
-## 🦺 Technical Quality Gates
+## Technical Quality Gates
 
 Pull Requests failing any of these gates will not be merged:
 
@@ -42,7 +44,7 @@ Pull Requests failing any of these gates will not be merged:
 * **RAM Bridge:** Deployable satellites must link both the satellite `.bin` and parent champion `.bin` so shared particle pointers resolve correctly.
 * **No File Comments:** No `#` comments within the file body after the initial header directives.
 
-## 🔀 Pull Request Guidelines
+## Pull Request Guidelines
 
 1. **Atomic Commits:** Scope each PR to a single champion family (main champion override and associated combat satellites).
 2. **Canonical Paths:** Place files in the standard structure:
@@ -51,6 +53,6 @@ Pull Requests failing any of these gates will not be merged:
    ```
 3. **Verification Note:** State the target champion, skin ID, and confirmation that the fix passed the Auditor `TEST` package in-game.
 
-## 📄 License
+## License
 
 By contributing to Vanilla True Builder, you agree that your contributions will be licensed under the project's [GNU General Public License v3.0](LICENSE).
