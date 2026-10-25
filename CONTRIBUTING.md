@@ -24,7 +24,7 @@ Contributors must follow the native AI curation loop before opening a Pull Reque
 flowchart TD
     A(["<b>🤖 1. Setup AI</b>\nLoad ai_context.md into Reasoning AI"]) --> B["<b>🔍 2. Audit</b>\nSelect skin & click [ AUDIT ] in auditor.py"]
     B --> C["<b>📊 3. AI Triage</b>\nClick [ COPY REPORT ] & paste into AI chat"]
-    C --> D{"<b>🩺 AI Verdict</b>\nFix Required?"}
+    C --> D{"<b>⚖️ AI Verdict</b>\nFix Required?"}
     D -- "<b>No (Linear / Safe)</b>" --> E(["<b>💨 Discard</b>\nHandled automatically by main.py in 0ms"])
     D -- "<b>Yes (Broken Kit)</b>" --> F["<b>📋 4. Copy Payload</b>\nRight-click requested row › [ Copy payload ] › Send to AI"]
     F --> G["<b>🧠 5. AI Generation</b>\nAI outputs template complying with 10 Laws"]
