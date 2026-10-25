@@ -55,7 +55,7 @@ The engine performs surgical, in-place property patching, modifying strictly wha
    Click **`📁 OPEN FANTOME FOLDER`**, drag `VanillaTrueMod.fantome` into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it!
 
 ### 🩺 How to Fix a Problematic Skin
-*If any skin has model vanishing, submesh, or animation issues, you can curate it in under 2 minutes with AI assistance:*
+*If any skin has model vanishing, submesh, or animation issues, you can curate it yourself in under 2 minutes:*
 
 1. Click **`SKIN FIX`** in the top-right corner of the main app to launch the **Auditor**.
 2. Drag-and-drop, upload, or copy the contents of `ai_context.md` from your root folder.
@@ -64,10 +64,8 @@ The engine performs surgical, in-place property patching, modifying strictly wha
 5. If the AI determines a fix is required:
     * Right-click the requested row to **`Copy payload`** and send it to the AI.
     * Double-click the row to open the override file, paste the AI-generated template, and save.
+    * *(Optional)* Click **`TEST`** in the Auditor to compile and test an isolated package in-game.
 6. Return to the main app and click **`BUILD PACKAGE`** again. It rebuilds only that champion with the fix in seconds, reusing the cache for the rest!
-
-> [!TIP]
-> You can click **`TEST`** in the Auditor at any time to compile an isolated `.fantome` package and verify that skin in-game before building your full mod.
 
 ### 🎚️ Recommended LTK Manager Setup 
 
