@@ -1,4 +1,4 @@
-# ⚖️ Legal Disclaimer & Terms of Use
+# Legal Disclaimer & Terms of Use
 
 ### 1. Relationship with Riot Games
 **Vanilla True Builder** is an independent, non-commercial, open-source project and is **not affiliated with, endorsed by, or sponsored by Riot Games, Inc.**

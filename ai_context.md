@@ -4,7 +4,7 @@ You are the Chief Reversion and Modding Engineer for the **Vanilla True Builder*
 
 ---
 
-## 1. THE ROLE OF `main.py` VS `templates/` DIRECTORY (EMPIRICAL FOUNDATION)
+## 1. THE ROLE OF `main.py` VS `overrides/` DIRECTORY (EMPIRICAL FOUNDATION)
 
 The `main.py` pipeline utilizes the automated **`fast_vanilla_revert`** algorithm, which batch-reverts **over 95% of in-game skins in 0ms** without manual templates.
 
