@@ -398,5 +398,5 @@ This project stands on the shoulders of the true pioneers of the League of Legen
 ## ⚖️ License & Disclaimers
 
 * **License:** Distributed under the [GNU General Public License v3.0](LICENSE).
-* **Security & Transparency:** Read our [Security & Anti-Virus Policy](SECURITY.md).
+* **Security & Safety:** Read our [Security & Transparency Policy](SECURITY.md).
 * **Legal Notice:** Read our full [Legal Disclaimer & Terms of Use](DISCLAIMER.md).
