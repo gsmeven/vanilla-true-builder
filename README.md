@@ -384,7 +384,7 @@ python main.py --dry-run
 ## 👤 Author & Ecosystem
 
 * [**Neve**](https://github.com/gsmeven) — Creator and lead maintainer of the Vanilla True ecosystem:
-  * [**vanilla-true-builder**](https://github.com/gsmeven/vanilla-true-builder) — Master restoration engine and forensic auditor suite.
+  * [**vanilla-true-builder**](https://github.com/gsmeven/vanilla-true-builder) — Master restoration engine and auditor suite.
   * [**vtb-ltk-tools**](https://github.com/gsmeven/vtb-ltk-tools) — Continuous integration pipeline building and hosting bleeding-edge Windows binaries of `wadtools` and `ritobin`.
 
 ## 🌟 Acknowledgements & Dedications
