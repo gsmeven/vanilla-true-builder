@@ -22,15 +22,15 @@ Contributors must follow the native AI curation loop before opening a Pull Reque
 
 ```mermaid
 flowchart TD
-    A["🤖 1. Setup AI\nLoad ai_context.md into Reasoning AI"] --> B["🔬 2. Audit\nSelect skin & click AUDIT in auditor.py"]
-    B --> C["📋 3. AI Triage\nClick COPY REPORT & paste into AI chat"]
-    C --> D{"⚖️ AI Verdict:\nFix Required?"}
-    D -- "No (Linear / Safe)" --> E["⚡ Discard\nHandled automatically by main.py in 0ms"]
-    D -- "Yes (Broken Kit)" --> F["📦 4. Copy Payload\nRight-click requested row › Copy payload › Send to AI"]
-    F --> G["🧠 5. AI Generation\nAI outputs template complying with 10 Laws"]
-    G --> H["💾 6. Edit & Save\nDouble-click row in Auditor to paste template into overrides/"]
-    H --> I["🧪 7. Isolated Test\nClick TEST in auditor.py › Verify in-game via LTK"]
-    I --> J["🔀 8. Pull Request\nSubmit verified override file(s)"]
+    A(["<b>🤖 1. Setup AI</b>\nLoad ai_context.md into Reasoning AI"]) --> B["<b>🔬 2. Audit</b>\nSelect skin & click AUDIT in auditor.py"]
+    B --> C["<b>📋 3. AI Triage</b>\nClick COPY REPORT & paste into AI chat"]
+    C --> D{"<b>⚖️ AI Verdict: Fix Required?</b>"}
+    D -- "<b>No (Linear / Safe)</b>" --> E(["<b>⚡ Discard</b>\nHandled automatically by main.py in 0ms"])
+    D -- "<b>Yes (Broken Kit)</b>" --> F["<b>📦 4. Copy Payload</b>\nRight-click requested row › Copy payload › Send to AI"]
+    F --> G["<b>🧠 5. AI Generation</b>\nAI outputs template complying with 10 Laws"]
+    G --> H["<b>💾 6. Edit & Save</b>\nDouble-click row in Auditor to paste template into overrides/"]
+    H --> I["<b>🧪 7. Isolated Test</b>\nClick TEST in auditor.py › Verify in-game via LTK"]
+    I --> J(["<b>🔀 8. Pull Request</b>\nSubmit verified override file(s)"])
 ```
 
 ### Step 1: Initialize the AI
