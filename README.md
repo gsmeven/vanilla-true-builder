@@ -16,7 +16,7 @@
 [📌 Setup](#-setup) •
 [🛠️ For Developers](#️-for-developers-run-from-source) •
 [🧰 Modules](#-modules) •
-[⚙️ Core Technical](#️-core-technical) •
+[⚙️ Technical Core](#️-technical-deep-dive) •
 [🏗️ Architecture](#️-architecture) •
 [🔬 Skin Curation](#-ai-skin-curation) •
 [👥 Ecosystem & Credits](#-author--ecosystem)
@@ -113,7 +113,7 @@ Every restoration module can be toggled independently to match your restoration 
 | **Nexus Finishers** | Victory/Defeat cinematic overlays and audio banks | Clears `complexEmitterDefinitionData`, sets `m_Enabled = false`, and purges end-of-game audio banks in `UI.wad.client`. | Default victory/defeat screen pan across every match, without cinematic interruptions. |
 | **Special Recalls** | Honor 5 & Challenger recall crests | Rewrites shared telemetry blocks in `Global.wad.client` to enforce canonical home recall VFX. | Classic recall VFX, no additional aura crests. |
 
-## ⚙️ Core Technical
+## ⚙️ Technical Deep Dive
 
 The pipeline operates directly on the game client's serialized property trees (`PROP`) and in-memory binary descriptors. Instead of importing external files or patching game logic, every character rig, animation controller, particle emitter, and faction asset is rebound to official Base definitions already compiled in the game archives. This preserves exact collision volumes, audio bank routing, and DirectX 11 pipeline stability without introducing foreign assets:
 
