@@ -31,7 +31,7 @@
 
 Traditional custom mods often rely on hacky placeholder textures, foreign dummy meshes, or destructive overrides that trigger DirectX crashes and hitbox desynchronization. Instead, VTB operates natively on official Riot archives using reverse-engineering toolchains [ritobin](https://github.com/LeagueToolkit/ritobin-tools) & [wadtools](https://github.com/LeagueToolkit/wadtools).
 
-The engine performs surgical, in-place property patching, modifying strictly what is necessary and rebinding champion skins, Order and Chaos faction entities (structures, rubble, and minions), vision wards, Clash banners, and special recalls canonically to native Base definitions already compiled in your local client. No third-party assets are ever imported: whenever an asset is strictly required to neutralize visual clutter, it is synthesized on the fly via raw hexadecimal bytecode (such as hardware-compliant 144-byte assets). This guarantees zero foreign bloat, flawless game stability, and a completely purified default experience.
+Operating on a strict non-invasive doctrine, VTB imports zero external assets. Every supported element—from champion animation controllers to faction structures and map properties—is canonically rebound to the native Base definitions already compiled in your client. Whenever a valid asset descriptor is strictly required by the graphics pipeline to silence visual clutter safely, the engine synthesizes hardware-compliant bytecode on the fly rather than bundling foreign files. This guarantees total visual restoration with zero bloat, uncompromised hitbox parity, and absolute game stability.
 
 > [!IMPORTANT]
 > * **First-Time Build Duration:** The initial compilation takes a few minutes as VTB processes and sanitizes multiple WADs in parallel.
@@ -104,13 +104,13 @@ Every restoration module can be toggled independently to match your restoration 
 
 | Module | Target Scope | Technical Implementation | Experience Result |
 | :--- | :--- | :--- | :--- |
-| [**Champions**](https://wiki.leagueoflegends.com/en-us/Champion_skin) | All champion skins | Rebinds animation graph to `Skin0`, clones base rig/mesh properties, resets CAC, and injects in-place submesh aliases. | Canonical base animations, uniform silhouettes, and original spell readability. |
-| [**Structures**](https://wiki.leagueoflegends.com/en-us/Turret) | Turrets, Rubble, Inhibitors, Nexus, Shopkeepers | Reverts team structures to default Order/Chaos bases; preserves ARAM/Bilgewater logic through structural integrity filters. | Base structures with canonical models. |
-| [**Minions**](https://wiki.leagueoflegends.com/en-us/Minion) | Melee, Ranged, Siege, and Super Minions | Re-indexes skin assignments to Faction IDs 0 and 1 without full map decompilation bloat. | Canonical minion silhouettes and wave readability. |
-| [**Wards**](https://wiki.leagueoflegends.com/en-us/Ward) | Sight, Yellow Trinket, Control/Jammer, Blue Trinket | Re-maps ward skin hashes to default base models across all inventory items. | Default ward silhouettes with uniform, canonical models. |
-| [**Map Accents**](https://wiki.leagueoflegends.com/en-us/Summoner%27s_Rift) | Clash banners, Worlds trophies, sponsor ads, godrays | Intercepts `mWorldParticlesINI`, neutralizes `StaticMaterialDef` diffuse passes, and assigns 144-byte assets. | Vanilla Rift with zero billboard clutter. |
-| [**Nexus Finishers**](https://wiki.leagueoflegends.com/en-us/Nexus_Finisher) | Victory/Defeat cinematic overlays and audio banks | Clears `complexEmitterDefinitionData`, sets `m_Enabled = false`, and purges end-of-game audio banks in `UI.wad.client`. | Default victory/defeat screen pan across every match, without cinematic interruptions. |
-| [**Special Recalls**](https://wiki.leagueoflegends.com/en-us/Recall) | Honor 5 & Challenger recall crests | Rewrites shared telemetry blocks in `Global.wad.client` to enforce canonical home recall VFX. | Classic recall VFX, no additional aura crests. |
+| [**Champions**](https://wiki.leagueoflegends.com/Champion_skin) | All champion skins | Rebinds animation graph to `Skin0`, clones base rig/mesh properties, resets CAC, and injects in-place submesh aliases. | Canonical base animations, uniform silhouettes, and original spell readability. |
+| [**Structures**](https://wiki.leagueoflegends.com/Category:Structure) | Turrets, Rubble, Inhibitors, Nexus, Shopkeepers | Reverts team structures to default Order/Chaos bases; preserves ARAM/Bilgewater logic through structural integrity filters. | Base structures with canonical models. |
+| [**Minions**](https://wiki.leagueoflegends.com/Minion) | Melee, Ranged, Siege, and Super Minions | Re-indexes skin assignments to Faction IDs 0 and 1 without full map decompilation bloat. | Canonical minion silhouettes and wave readability. |
+| [**Wards**](https://wiki.leagueoflegends.com/Ward) | Sight, Yellow Trinket, Control/Jammer, Blue Trinket | Re-maps ward skin hashes to default base models across all inventory items. | Default ward silhouettes with uniform, canonical models. |
+| [**Map Accents**](https://wiki.leagueoflegends.com/Summoner%27s_Rift) | Clash banners, Worlds trophies, sponsor ads, godrays | Intercepts `mWorldParticlesINI`, neutralizes `StaticMaterialDef` diffuse passes, and assigns 144-byte assets. | Vanilla Rift with zero billboard clutter. |
+| [**Nexus Finishers**](https://wiki.leagueoflegends.com/Nexus_Finisher) | Victory/Defeat cinematic overlays and audio banks | Clears `complexEmitterDefinitionData`, sets `m_Enabled = false`, and purges end-of-game audio banks in `UI.wad.client`. | Default victory/defeat screen pan across every match, without cinematic interruptions. |
+| [**Special Recalls**](https://wiki.leagueoflegends.com/Recall) | Honor 5 & Challenger recall crests | Rewrites shared telemetry blocks in `Global.wad.client` to enforce canonical home recall VFX. | Classic recall VFX, no additional aura crests. |
 
 ## ⚙️ Technical Deep Dive
 
