@@ -18,7 +18,7 @@
 [🧰 Modules](#-modules) •
 [⚙️ Technical Core](#️-technical-deep-dive) •
 [🏗️ Architecture](#️-architecture) •
-[🔬 Skin Curation](#-ai-skin-curation) •
+[🔬 Skin Curation](#-skin-curation) •
 [👥 Ecosystem & Credits](#-author--ecosystem)
 
 <img src="preview.jpg" alt="Vanilla True Builder Hextech Dashboard" width="850px" style="border-radius: 8px; border: 1px solid #1a2530; box-shadow: 0 8px 24px rgba(0,0,0,0.6);" />
