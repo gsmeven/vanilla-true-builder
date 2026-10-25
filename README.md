@@ -58,7 +58,7 @@ Operating on a zero-asset doctrine, VTB restores a complete vanilla state withou
 If any skin has visual issues, you can curate it in under 2 minutes with AI assistance:
 
 1. Click **`SKIN FIX`** in the top-right corner of the main app to launch the **Auditor**.
-2. Drag-and-drop, upload, or copy the contents of `ai_context.md` from your root folder.
+2. Copy the contents of `ai_context.md` from your root folder.
 3. Send it into any reasoning AI chat (e.g., Gemini, ChatGPT, DeepSeek).
 4. Select the specific champion and skin you are experiencing reversion issues with, click **`AUDIT`**, then click **`📋 COPY REPORT`** at the bottom and paste it into the AI.
 5. If the AI determines a fix is required:
