@@ -34,11 +34,14 @@ except Exception:
 
 LOG = logging.getLogger("vanilla_builder")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
-from version import APP_VERSION
 
-PIPELINE_CORE_VERSION = "2026_vanilla_v83_submesh_contract_engine"
+APP_VERSION = "v1.8.3"
 GITHUB_REPO_URL = "https://github.com/gsmeven/vanilla-true-builder"
 GITHUB_LATEST_API = "https://api.github.com/repos/gsmeven/vanilla-true-builder/releases/latest"
+
+# ==============================================================================
+# PIPELINE & CACHE CONFIGURATION
+# ==============================================================================
 
 if getattr(sys, "frozen", False):
 	try:
@@ -330,10 +333,10 @@ _RECALL_VFX_PATTERN = re.compile(r'(?i)\bRecall_(?:Honor|Challenger)\w*')
 
 
 # ==============================================================================
-# ATOMIC CANONICAL CACHE MANAGEMENT (DIRECT FLAT WAD STORAGE)
+# ATOMIC CANONICAL CACHE MANAGEMENT
 # ==============================================================================
 def _script_fingerprint() -> str:
-	return hashlib.sha256(PIPELINE_CORE_VERSION.encode("utf-8")).hexdigest()[:16]
+	return hashlib.sha256(APP_VERSION.encode("utf-8")).hexdigest()[:16]
 
 
 def file_fingerprint(path: Path) -> str:
@@ -2485,7 +2488,7 @@ def create_standalone_fantome(
 		"Author": "Neve",
 		"Version": APP_VERSION,
 		"Description": desc_str,
-		"License": "MIT License",
+		"License": "GPL-3.0",
 	}
 	info_json_bytes = json.dumps(metadata, indent=2, ensure_ascii=False).encode("utf-8")
 
@@ -2507,27 +2510,21 @@ This project stands on the shoulders of the true pioneers of the League of Legen
 Compiled and packaged via **[Vanilla True Builder](https://github.com/gsmeven/vanilla-true-builder)** by **[Neve](https://github.com/gsmeven)**.
 """
 
-	# 3. LICENSES (OFFICIAL MIT LICENSE)
-	license_text = """Copyright (c) 2026 Neve / Vanilla True Builder
+	# 3. LICENSES (OFFICIAL GPL-3.0)
+	license_text = """Copyright (C) 2026 Neve (https://github.com/gsmeven/vanilla-true-builder)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 	archive_entries: list[tuple[Path, str]] = []
@@ -3914,13 +3911,14 @@ class TkApp:
 
 
 def launch_auditor_window():
-	try:
-		import auditor
-		aud_root = tk.Tk()
-		aud_app = auditor.ChampionAuditorApp(aud_root)
-		aud_root.mainloop()
-	except Exception as e:
-		messagebox.showerror("Error", f"Failed to launch Auditor: {e}")
+    try:
+        import auditor
+        auditor.APP_VERSION = APP_VERSION
+        aud_root = tk.Tk()
+        aud_app = auditor.ChampionAuditorApp(aud_root)
+        aud_root.mainloop()
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to launch Auditor: {e}")
 
 
 if __name__ == "__main__":

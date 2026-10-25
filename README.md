@@ -10,7 +10,7 @@
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20x64-0078d7?style=for-the-badge&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![Package](https://img.shields.io/badge/Output-.fantome%20(LTK)-785a28?style=for-the-badge&logo=zip&logoColor=white)](https://github.com/LeagueToolkit)
-[![License: MIT](https://img.shields.io/badge/License-MIT-3cd070?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
 
 [📖 Overview](#-overview) •
 [📌 Setup](#-setup) •
@@ -330,7 +330,7 @@ VanillaTrueMod.fantome
 ├── META/
 │   ├── info.json       # Mod metadata, versioning, author & details description
 │   ├── README.md       # Overview, restoration checklist & dedications
-│   ├── LICENSE         # Official MIT License
+│   ├── LICENSE         # Official GPL-3.0 License
 │   ├── image.png       # High-resolution presentation banner
 │   └── icon.png        # Square list thumbnail
 └── WAD/
@@ -397,6 +397,6 @@ This project stands on the shoulders of the true pioneers of the League of Legen
 
 ## ⚖️ License & Disclaimers
 
-* **License:** Distributed under the [MIT License](LICENSE).
+* **License:** Distributed under the [GNU General Public License v3.0](LICENSE).
 * **Security & Transparency:** Read our [Security & Anti-Virus Policy](SECURITY.md).
 * **Legal Notice:** Read our full [Legal Disclaimer & Terms of Use](DISCLAIMER.md).

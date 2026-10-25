@@ -21,12 +21,15 @@ from pathlib import Path
 from typing import Callable
 import tkinter as tk
 from tkinter import messagebox, ttk
-from version import APP_VERSION
 
 if getattr(sys, "frozen", False):
 	WORKSPACE_ROOT = Path(sys.executable).resolve().parent
 else:
 	WORKSPACE_ROOT = Path(__file__).resolve().parent
+try:
+	from main import APP_VERSION
+except ImportError:
+	from __main__ import APP_VERSION
 
 OVERRIDES_DIR = WORKSPACE_ROOT / "overrides"
 REPORT_FILE = WORKSPACE_ROOT / "auditor_ledger.log"
@@ -2260,7 +2263,7 @@ class ChampionAuditorApp:
 						"Author": "Neve",
 						"Version": APP_VERSION,
 						"Description": f"Vanilla restored for: {champ} (Skin{skin_id}).",
-						"License": "MIT License",
+						"License": "GPL-3.0",
 					}
 					info_json_bytes = json.dumps(metadata, indent=2, ensure_ascii=False).encode("utf-8")
 
@@ -2270,26 +2273,20 @@ class ChampionAuditorApp:
 Compiled and packaged via **[Vanilla True Builder](https://github.com/gsmeven/vanilla-true-builder)** by **[Neve](https://github.com/gsmeven)**.
 """
 
-					license_text = """Copyright (c) 2026 Neve / Vanilla True Builder
+					license_text = """Copyright (C) 2026 Neve (https://github.com/gsmeven/vanilla-true-builder)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 					with zipfile.ZipFile(output_fantome, "w", compression=zipfile.ZIP_DEFLATED) as arc:
