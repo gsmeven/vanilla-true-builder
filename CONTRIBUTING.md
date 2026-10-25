@@ -26,7 +26,7 @@ flowchart TD
     B --> C["<b>📊 3. AI Triage</b>\nClick [ COPY REPORT ] & paste into AI chat"]
     C --> D{"<b>⚖️ AI Verdict</b>\nFix Required?"}
     D -- "<b>No (Linear / Safe)</b>" --> E(["<b>💨 Discard</b>\nHandled automatically"])
-    D -- "<b>Yes (Broken Kit)</b>" --> F["<b>📋 4. Copy Payload</b>\nRight-click requested row › [ Copy payload ] › Send to AI"]
+    D -- "<b>Yes (Broken Skins)</b>" --> F["<b>📋 4. Copy Payload</b>\nRight-click requested row › [ Copy payload ] › Send to AI"]
     F --> G["<b>🧠 5. AI Generation</b>\nAI outputs template complying with 10 Laws"]
     G --> H["<b>📑 6. Edit & Save</b>\nDouble-click row in Auditor to paste template into <i>overrides/</i>"]
     H --> I["<b>🧪 7. Isolated Test</b>\nClick [ TEST ] in <i>auditor.py</i> › Verify in-game via LTK"]
