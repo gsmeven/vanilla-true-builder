@@ -4,7 +4,7 @@ Thank you for your interest in contributing to **Vanilla True Builder (VTB)**.
 
 Over 95% of champion skins revert automatically via `main.py` without manual intervention. Community contributions are strictly focused on curating the remaining rare edge cases.
 
-The entire curation process in this project is executed through the built-in Auditor (`auditor.py`) workflow (**`HELP`** guide), combining the curation rulebook (`ai_context.md`) with AI assistance.
+The entire curation process in this project is executed through the built-in Auditor (`auditor.py`) workflow (**`HELP`**), combining the curation rulebook (`ai_context.md`) with AI assistance.
 
 ## Contribution Scopes
 
@@ -55,8 +55,6 @@ Click **`TEST`** inside the Auditor to compile an isolated `.fantome` package. M
 ### Step 8: Submit Pull Request
 Once verified in-game, commit the generated `.bin.txt` file(s) strictly under `overrides/<entity>/skins/skin<id>.bin.txt` (preserving the exact entity structure created by the Auditor) and open your Pull Request.
 
----
-
 ## Pull Request Guidelines
 
 1. **Focused PRs:** Scope each pull request to a single champion family (the main champion override and its combat satellites).
@@ -66,8 +64,6 @@ Once verified in-game, commit the generated `.bin.txt` file(s) strictly under `o
    ```
 3. **Verification Proof:** Mention the target champion, skin ID, and brief confirmation that the fix was verified in-game via the Auditor **`TEST`** button.
 4. **Law Compliance:** Submitted templates must strictly adhere to the 10 Laws in `ai_context.md` (plain-text `.bin.txt` only, no binary files).
-
----
 
 ## License
 
