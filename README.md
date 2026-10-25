@@ -38,7 +38,7 @@ Operating on a strict non-invasive doctrine, VTB imports zero external assets. E
 > * **Temp Buffer:** Decompresses into an isolated `%TEMP%` directory without touching game files, pruned automatically upon completion.
 > * **LTK Storage:** Initial patching takes a few minutes and needs **~21 GB of disk space**, which is an inherent behavior of LTK's virtual filesystem when staging mods across several WADs.
 > * **Hash Cache:** Validated via `WAD_HASH:SCRIPT_HASH`. Subsequent builds are near-instant, keeping a compact local cache (**~1 GB**).
-* **Patch-Resilient:** On launch, checks your mod against live game files and alerts you if an update is needed. Click **`BUILD PACKAGE`** to re-sync altered files in seconds.
+> * **Patch-Resilient:** On launch, checks your mod against live game files and alerts you if an update is needed. Click **`BUILD PACKAGE`** to re-sync altered files in seconds.
 > * **Skin Curation:** Over **95% of skins revert automatically**. Edge cases with unique submeshes or animations resolve in under 2 minutes via **`SKIN FIX`** and reasoning AI.
 
 ## 📌 Setup
