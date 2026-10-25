@@ -2,9 +2,9 @@
 
 Thank you for your interest in contributing to **Vanilla True Builder (VTB)**.
 
-Over 95% of champion skins revert automatically via `main.py` without manual intervention. Community contributions are strictly focused on curating the remaining edge cases: legendaries with complex state machines, decoupled deployable satellites, and submesh divergences.
+Over 95% of champion skins revert automatically via `main.py` without manual intervention. Community contributions are strictly focused on curating the remaining rare edge cases.
 
-All skin curation in this project is executed through the built-in Auditor studio (`auditor.py`) in combination with the curation rulebook (`ai_context.md`).
+The entire curation process in this project is executed through the built-in Auditor (`auditor.py`) workflow (**`HELP`**), combining the curation rulebook (`ai_context.md`) with AI assistance.
 
 ## Contribution Scopes
 
@@ -34,7 +34,7 @@ flowchart TD
 ```
 
 ### Step 1: Setup AI Chat
-Provide the contents of `ai_context.md` (located in the project root) to your reasoning AI chat. This establishes the formatting constraints, memory structures, and the strict 10 Laws of Curation.
+Provide the contents of `ai_context.md` (located in the project root) to your reasoning AI chat. *(Shortcut: You can also click **`HELP`** › **`Copy Context`** directly inside the Auditor).*
 
 ### Step 2: Run Diagnostics in the Auditor
 Launch `auditor.py` (or click **`SKIN FIX`** in the main builder). Select the target champion and skin, then click **`AUDIT`**. The Auditor decompiles and extracts strictly the required properties (`PROP`) and 3D submeshes (`.skn`) into RAM.
