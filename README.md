@@ -74,7 +74,7 @@ If any skin has visual issues, you can curate it in under 2 minutes with AI assi
 * **Always start patcher at launch:** `ON` *(Automatically mounts and starts your active profile whenever the app launches)*
 
 > [!NOTE]
-> **"Unexplained Game Exit [GAME STOPPED]"** is a harmless cosmetic notice that occurs if your PC is shut down while the patcher was active without entering a match. 
+> LTK's warning **DLL Injection Failure** is a harmless cosmetic error that occurs if your PC is shut down while the patcher was active without entering a match. 
 > Ignore or simply click **Dismiss** and launch League normally (Your mod is completely functional).
 
 ## 🛠️ For Developers (Run from Source)
