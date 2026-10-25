@@ -4,7 +4,7 @@ Thank you for your interest in contributing to **Vanilla True Builder (VTB)**.
 
 Over 95% of champion skins revert automatically via `main.py` without manual intervention. Community contributions are strictly focused on curating the remaining rare edge cases.
 
-The entire curation process in this project is executed through the built-in Auditor (`auditor.py`) workflow (**`HELP`**), combining the curation rulebook (`ai_context.md`) with AI assistance.
+The entire curation process in this project is executed through the built-in Auditor (`auditor.py`) workflow (**`HELP`** guide), combining the curation rulebook (`ai_context.md`) with AI assistance.
 
 ## Contribution Scopes
 
@@ -22,15 +22,13 @@ Contributors must follow the native curation loop before opening a Pull Request:
 
 ```mermaid
 flowchart TD
-    A(["<b>🤖 1. Setup AI</b>\nLoad <i>ai_context.md</i> into Reasoning AI"]) --> B["<b>🔍 2. Audit</b>\nSelect skin & click [ AUDIT ] in <i>auditor.py</i>"]
-    B --> C["<b>📊 3. AI Triage</b>\nClick [ COPY REPORT ] & paste into AI chat"]
-    C --> D{"<b>⚖️ AI Verdict:</b>\nFix Required?"}
-    D -- "<b>No (Linear / Safe)</b>" --> E(["<b>💨 Discard</b>\nHandled automatically during standard build"])
-    D -- "<b>Yes (Broken Skin)</b>" --> F["<b>📋 4. Copy Payload</b>\nRight-click requested row › [ Copy payload ] › Send to AI"]
-    F --> G["<b>🧠 5. AI Generation</b>\nAI outputs template complying with 10 Laws"]
-    G --> H["<b>💾 6. Edit & Save</b>\nDouble-click row in Auditor to paste template into <i>overrides</i>"]
-    H --> I["<b>🧪 7. Isolated Test</b>\nClick [ TEST ] in <i>auditor.py</i> › Verify in-game via LTK"]
-    I --> J(["<b>🔀 8. Pull Request</b>\nSubmit verified override file(s)"])
+    A["<b>1. Setup AI</b><br/>Load <i>ai_context.md</i> into Reasoning AI"] --> B["<b>2. Audit</b><br/>Select skin & click [ AUDIT ] in <i>auditor.py</i>"]
+    B --> C["<b>3. Triage Report</b><br/>Paste [ COPY REPORT ] to identify target entity"]
+    C --> D["<b>4. Copy Payload</b><br/>Right-click target row › [ Copy payload ]"]
+    D --> E["<b>5. Generate Template</b><br/>AI produces .bin.txt adhering to 10 Laws"]
+    E --> F["<b>6. Save Override</b><br/>Double-click row in Auditor to paste & save"]
+    F --> G["<b>7. Isolated Test</b><br/>Click [ TEST ] › In-game verification via LTK"]
+    G --> H(["<b>8. Pull Request</b><br/>Submit canonical .bin.txt override"])
 ```
 
 ### Step 1: Setup AI Chat
@@ -39,20 +37,25 @@ Provide the contents of `ai_context.md` (located in the project root) to your re
 ### Step 2: Run Diagnostics in the Auditor
 Launch `auditor.py` (or click **`SKIN FIX`** in the main builder). Select the target champion and skin, then click **`AUDIT`**. The Auditor decompiles and extracts strictly the required properties (`PROP`) and 3D submeshes (`.skn`) into RAM.
 
-### Step 3: Diagnostic Triage
-Click **`📋 COPY REPORT`** at the bottom of the Auditor and paste the diagnostics into your AI chat. Discard items that `main.py` already resolves automatically (linear bodies, non-combat props, or cosmetic sub-forms without a native `Skin0`).
+### Step 3: Triage Diagnostics
+Click **`📋 COPY REPORT`** at the bottom of the Auditor and paste the diagnostics into your AI chat to identify the exact divergent entity (main champion body, deployable combat satellite, or submesh contract mismatch).
 
-### Step 4: Extract Specific Payload
-If an override template is required, identify the exact entity row (main champion body or satellite deployable). In the Auditor, right-click the requested row, select **`Copy payload`**, and send it to the AI.
+### Step 4: Extract Target Payload
+Once the target entity is confirmed, right-click its specific row in the Auditor, select **`Copy payload`**, and send it to the AI.
 
-### Step 5: Generate and Save Template
-The AI will generate the property override adhering to the 10 Laws of Curation. Double-click that same row in the Auditor to open its corresponding file in `overrides/`, paste the template, and save.
+### Step 5: Generate Property Template
+The AI generates the property override strictly adhering to the 10 Laws of Curation, establishing 1:1 Base parity and declaring `# VARIANTS:` or `# SUBMESH_ALIAS:` headers if required.
 
-### Step 6: Isolated In-Game Test
-Click **`TEST`** inside the Auditor to compile an isolated `.fantome` package. Mount it in [LTK Manager](https://github.com/LeagueToolkit) and enter Practice Tool to verify that models, submeshes, hitboxes, and spell effects render correctly without crashes or visual artifacts.
+### Step 6: Save Override to Disk
+Double-click that same entity row in the Auditor to open its corresponding file in `overrides/`. Paste the AI-generated template and save (`Ctrl + S`).
 
-### Step 7: Submit Pull Request
+### Step 7: Isolated In-Game Test
+Click **`TEST`** inside the Auditor to compile an isolated `.fantome` package. Mount it in [LTK Manager](https://github.com/LeagueToolkit) and enter Practice Tool to verify that models, submeshes, hitboxes, and spell effects render canonically without crashes or visual artifacts.
+
+### Step 8: Submit Pull Request
 Once verified in-game, commit the generated `.bin.txt` file(s) strictly under `overrides/<entity>/skins/skin<id>.bin.txt` (preserving the exact entity structure created by the Auditor) and open your Pull Request.
+
+---
 
 ## Pull Request Guidelines
 
@@ -63,6 +66,8 @@ Once verified in-game, commit the generated `.bin.txt` file(s) strictly under `o
    ```
 3. **Verification Proof:** Mention the target champion, skin ID, and brief confirmation that the fix was verified in-game via the Auditor **`TEST`** button.
 4. **Law Compliance:** Submitted templates must strictly adhere to the 10 Laws in `ai_context.md` (plain-text `.bin.txt` only, no binary files).
+
+---
 
 ## License
 
