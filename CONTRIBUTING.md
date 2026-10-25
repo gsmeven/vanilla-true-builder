@@ -14,7 +14,7 @@ Contributions are accepted strictly within the following scopes:
 2. **Curation Logic & Laws (`ai_context.md`):** Proposals to optimize or expand the 10 Laws of Curation.
 
 > [!NOTE]
-> **Stability Baseline:** The 10 Laws of Curation have proven universally resilient in resolving model vanishing, weapon desynchronization, and animation locks with zero DirectX or client crashes. Any proposed changes to `ai_context.md` must preserve this stability standard.
+> The 10 Laws of Curation have proven universally resilient in resolving model vanishing, weapon desynchronization, and animation locks with zero DirectX or client crashes. Any proposed changes to `ai_context.md` must preserve this stability standard.
 
 ## Mandatory AI-Assisted Curation Workflow
 
