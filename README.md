@@ -27,18 +27,18 @@
 
 ## 📖 Overview
 
-**Vanilla True Builder (VTB)** is an automated visual restoration engine engineered specifically for **[LTK Manager](https://github.com/LeagueToolkit)**. With a single click, it compiles a tailored, zero-bloat restoration package (`.fantome`) directly from your local game installation.
+**Vanilla True Builder (VTB)** is an automated visual restoration engine built specifically for **[LTK Manager](https://github.com/LeagueToolkit)**. With a single click, it compiles a tailored, zero-bloat restoration package (`.fantome`) directly from your local game installation.
 
 Traditional custom mods rely on placeholder textures, foreign dummy meshes, or destructive overrides that trigger DirectX crashes and hitbox desynchronization. Instead, VTB operates natively on official Riot archives, leveraging proven reverse-engineering toolchains ([ritobin](https://github.com/LeagueToolkit/ritobin-tools) & [wadtools](https://github.com/LeagueToolkit/wadtools)) to patch game data directly at the engine level.
 
-Operating on a strict non-invasive doctrine, VTB imports zero external assets. Every supported element—from champion animation controllers to faction structures and map properties—is canonically rebound to the native Base definitions already compiled in your client. When a valid asset descriptor is required by the graphics pipeline to silence visual clutter safely, the engine synthesizes hardware-compliant bytecode on the fly instead of bundling foreign files. This guarantees total visual restoration with zero bloat, uncompromised hitbox parity, and absolute game stability.
+Operating on a strict non-invasive doctrine, VTB imports zero external assets. Every supported element, from champion animation controllers to faction structures and map properties, is canonically rebound to the native Base definitions already compiled in your client. When a valid asset descriptor is required by the graphics pipeline to silence visual clutter safely, the engine synthesizes hardware-compliant bytecode on the fly instead of bundling foreign files. This guarantees total visual restoration with zero bloat, uncompromised hitbox parity, and absolute game stability.
 
 > [!IMPORTANT]
 > * **First Build:** Takes a few minutes initially to process and sanitize all needed game WADs in parallel.
 > * **Temp Buffer:** Decompresses into an isolated `%TEMP%` directory without touching game files, pruned automatically upon completion.
 > * **LTK Storage:** Initial patching takes a few minutes and needs **~21 GB of disk space**, which is an inherent behavior of LTK's virtual filesystem when staging mods across several WADs.
 > * **Hash Cache:** Validated via `WAD_HASH:SCRIPT_HASH`. Subsequent builds are near-instant, keeping a compact local cache (**~1 GB**).
-> * **Patch-Resilient:** Monitors your `.fantome` against live game updates. Re-sync altered files in seconds by clicking **`BUILD PACKAGE`** when prompted.
+> * **Patch-Resilient:** On launch, checks your mod against live game files and alerts you if an update is needed. Build again to re-sync altered files in seconds.
 > * **Skin Curation:** Over **95% of skins revert automatically**. Edge cases with unique submeshes or animations resolve in under 2 minutes via **`SKIN FIX`** and reasoning AI.
 
 ## 📌 Setup
