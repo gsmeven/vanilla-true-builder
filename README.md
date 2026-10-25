@@ -61,8 +61,8 @@ If any skin has visual issues, you can curate it in under 2 minutes with AI assi
 2. Copy the contents of `ai_context.md` from your root folder.
 3. Send it into any reasoning AI chat (e.g., Gemini, ChatGPT, DeepSeek).
 4. Select the specific champion and skin you are experiencing reversion issues with, click **`AUDIT`**, then click **`📋 COPY REPORT`** at the bottom and paste it into the AI.
-5. If the AI determines a fix is required:
-    * Right-click the requested row to **`Copy payload`** and send it to the AI.
+5. After AI determines a fix is required:
+    * Right-click the requested entity to **`Copy payload`** and send it to the AI.
     * Double-click the row to open the override file, paste the AI-generated template, and save.
     * *(Optional)* Click **`TEST`** in the Auditor to compile and test an isolated package in-game.
 6. Return to the main app and click **`BUILD PACKAGE`** again. It rebuilds only that champion with the fix in seconds, reusing the cache for the rest!
