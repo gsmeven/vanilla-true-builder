@@ -34,12 +34,12 @@ Traditional custom mods rely on placeholder textures, foreign dummy meshes, or d
 Operating on a strict non-invasive doctrine, VTB imports zero external assets. Every supported element—from champion animation controllers to faction structures and map properties—is canonically rebound to the native Base definitions already compiled in your client. When a valid asset descriptor is required by the graphics pipeline to silence visual clutter safely, the engine synthesizes hardware-compliant bytecode on the fly instead of bundling foreign files. This guarantees total visual restoration with zero bloat, uncompromised hitbox parity, and absolute game stability.
 
 > [!IMPORTANT]
-> * **First-Time Build Duration:** The initial compilation takes a few minutes as VTB processes and sanitizes multiple WADs in parallel.
-> * **Temporary Scratch Space:** Decompressed archives are processed in an isolated `%TEMP%` buffer without touching your game installation, and pruned automatically upon completion.
-> * **LTK Game Overlay:** When patching **for the first time**, LTK Manager constructs a staged game overlay requiring **~21 GB of disk space** and takes a few minutes to finish. This initial duration and storage footprint are inherent characteristics of LTK's virtual filesystem.
-> * **Hash Cache:** Validated via `WAD_HASH:SCRIPT_HASH`. Subsequent builds are near-instant, maintaining a compact local cache (**~1 GB**) of strictly necessary decompiled game files.
-> * **Patch-Resilient:** Intelligent patch tracking monitors your root `.fantome` file against live game archives. You only need to run **`BUILD PACKAGE`** when prompted, updating altered files in seconds.
-> * **Skin Curation:** Over **95% of champion skins revert automatically**. Edge cases with unique submeshes or animation conflicts can be resolved in under two minutes via the built-in Auditor (**`SKIN FIX`**) and reasoning AI.
+> * **First Build:** Takes a few minutes initially to process and sanitize all needed game WADs in parallel.
+> * **Temp Buffer:** Decompresses into an isolated `%TEMP%` directory without touching game files, pruned automatically upon completion.
+> * **LTK Storage:** Initial patching takes a few minutes and needs **~21 GB of disk space**—an inherent behavior of LTK's virtual filesystem when staging mods across several WADs.
+> * **Hash Cache:** Validated via `WAD_HASH:SCRIPT_HASH`. Subsequent builds are near-instant, keeping a compact local cache (**~1 GB**).
+> * **Patch-Resilient:** Monitors your `.fantome` against live game updates. Re-sync altered files in seconds by clicking **`BUILD PACKAGE`** when prompted.
+> * **Skin Curation:** Over **95% of skins revert automatically**. Edge cases with unique submeshes or animations resolve in under 2 minutes via **`SKIN FIX`** and reasoning AI.
 
 ## 📌 Setup
 
