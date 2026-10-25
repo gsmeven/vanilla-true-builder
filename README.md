@@ -39,7 +39,7 @@ The engine performs surgical, in-place property patching, modifying strictly wha
 > * **LTK Game Overlay:** When patching **for the first time**, LTK Manager constructs a staged game overlay requiring **~21 GB of disk space** and takes a few minutes to finish. This initial duration and storage footprint are inherent characteristics of LTK's virtual filesystem.
 > * **Hash Cache:** Validated via `WAD_HASH:SCRIPT_HASH`. Subsequent builds are near-instant, maintaining a compact local cache (**~1 GB**) of strictly necessary decompiled game files.
 > * **Patch-Resilient:** Intelligent patch tracking monitors your root `.fantome` file against live game archives. You only need to run **`BUILD PACKAGE`** when prompted, updating altered files in seconds.
-> * **AI Skin Curation:** Over **95% of champion skins revert automatically**. Edge cases with unique submeshes or animation conflicts can be resolved in under two minutes via the built-in Auditor (**`SKIN FIX`**) and reasoning AI.
+> * **Skin Curation:** Over **95% of champion skins revert automatically**. Edge cases with unique submeshes or animation conflicts can be resolved in under two minutes via the built-in Auditor (**`SKIN FIX`**) and reasoning AI.
 
 ## 📌 Setup
 
@@ -66,7 +66,8 @@ The engine performs surgical, in-place property patching, modifying strictly wha
 5. If the AI determines a fix is required:
     * Right-click the requested row to **`Copy payload`** and send it to the AI.
     * Double-click the row to open the override file, paste the AI-generated template, and save.
-    * Click **`TEST`** inside the Auditor to compile and test an isolated `.fantome` package instantly!
+    * (Optional) Click **`TEST`** inside the Auditor to compile and verify an isolated `.fantome` package instantly.
+6. Return to the main app and click **`BUILD PACKAGE`** again. It rebuilds only that champion with the fix in seconds, reusing the cache for the rest!
 
 ### 🎚️ Recommended LTK Manager Setup 
 
@@ -279,11 +280,11 @@ A suite for skin analysis and instant curation (AI assist):
 ### `overrides/` — Curated Templates
 A version-controlled directory of hand-crafted templates for legendary and ultimate skins requiring non-linear state machine handling (e.g., Blackfrost Anivia, True Damage Ekko). Includes pre-configured `# VARIANTS:` and `# SUBMESH_ALIAS:` headers.
 
-## 🔬 AI Skin Curation
+## 🔬 Skin Curation
 
 In traditional League of Legends modding, fixing broken animations, invisible models, or desynchronized spell meshes on complex legendary and ultimate skins required hours of manual reverse-engineering, hex-editing `.skn` headers, and inspecting memory structures.
 
-**Vanilla True Builder automates this entire pipeline.** Through the built-in **Auditor (`SKIN FIX`)**, anyone, even without prior coding or 3D modeling experience, can curate and fix any skin in seconds by following the interactive **`HELP`** guide in the top toolbar.
+**Vanilla True Builder automates this entire pipeline.** Through the built-in **Auditor (`SKIN FIX`)**, anyone, even without prior coding or 3D modeling experience, can curate and fix any skin with AI assistance in seconds by following the interactive **`HELP`** guide in the top toolbar.
 
 ### Autonomous Heavy Lifting
 When you select a skin and click **`AUDIT`**, you do not need to touch raw files or decipher engine schemas. The Auditor autonomously executes:
@@ -292,6 +293,7 @@ When you select a skin and click **`AUDIT`**, you do not need to touch raw files
 * **3D Submesh Analysis:** Compares the target skin's 3D mesh descriptors against Base to identify visibility or weapon-vanishing discrepancies.
 * **Audit Report (`COPY REPORT`):** Generates a full telemetry report across main champion bodies and deployable satellites for initial triage.
 * **Payload Generation (`Copy payload`):** Extracts the raw resolver blocks, submesh alias directives, and canonical Base files for the selected row on demand.
+* **Smart Lifecycle:** Saving a override automatically purges that champion's cached files on window refocus, ensuring your next build updates seamlessly. If a template is left empty or canceled, the Auditor silently deletes the blank file and its folder hierarchy, leaving zero leftover clutter in `overrides/`.
 
 The AI receives the exact, pristine baseline data it needs to write the fix, strictly adhering to the **10 Laws of Curation** to guarantee zero crashes, perfect hitboxes, and native visual stability.
 
