@@ -55,7 +55,7 @@ The engine performs surgical, in-place property patching, modifying strictly wha
    Click **`📁 OPEN FANTOME FOLDER`**, drag `VanillaTrueMod.fantome` into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it!
 
 ### 🩺 How to Fix a Problematic Skin
-*If any skin has model vanishing, submesh, or animation issues, you can curate it yourself in under 2 minutes:*
+*If any skin has model vanishing, submesh, or animation issues, you can curate it in under 2 minutes with AI assistance:*
 
 1. Click **`SKIN FIX`** in the top-right corner of the main app to launch the **Auditor**.
 2. Drag-and-drop, upload, or copy the contents of `ai_context.md` from your root folder.
