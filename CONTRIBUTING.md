@@ -25,10 +25,10 @@ flowchart TD
     A(["<b>🤖 1. Setup AI</b>\nLoad <i>ai_context.md</i> into Reasoning AI"]) --> B["<b>🔍 2. Audit</b>\nSelect skin & click [ AUDIT ] in <i>auditor.py</i>"]
     B --> C["<b>📊 3. AI Triage</b>\nClick [ COPY REPORT ] & paste into AI chat"]
     C --> D{"<b>⚖️ AI Verdict:</b>\nFix Required?"}
-    D -- "<b>No (Linear / Safe)</b>" --> E(["<b>💨 Discard</b>\nHandled automatically by <i>main.py</i> in 0ms"])
-    D -- "<b>Yes (Broken Kit)</b>" --> F["<b>📑 4. Copy Payload</b>\nRight-click requested row › [ Copy payload ] › Send to AI"]
+    D -- "<b>No (Linear / Safe)</b>" --> E(["<b>💨 Discard</b>\nHandled automatically by <i>main.py</i>"])
+    D -- "<b>Yes (Broken Skin)</b>" --> F["<b>📋 4. Copy Payload</b>\nRight-click requested row › [ Copy payload ] › Send to AI"]
     F --> G["<b>🧠 5. AI Generation</b>\nAI outputs template complying with 10 Laws"]
-    G --> H["<b>💾 6. Edit & Save</b>\nDouble-click row in Auditor to paste template into <i>overrides/</i>"]
+    G --> H["<b>💾 6. Edit & Save</b>\nDouble-click row in Auditor to paste template into <i><b>overrides/</b></i>"]
     H --> I["<b>🧪 7. Isolated Test</b>\nClick [ TEST ] in <i>auditor.py</i> › Verify in-game via LTK"]
     I --> J(["<b>🔀 8. Pull Request</b>\nSubmit verified override file(s)"])
 ```
