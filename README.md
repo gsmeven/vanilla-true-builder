@@ -74,8 +74,8 @@ If any skin has visual issues, you can curate it in under 2 minutes with AI assi
 * **Always start patcher at launch:** `ON` *(Automatically mounts and starts your active profile whenever the app launches)*
 
 > [!NOTE]
-> LTK's warning **DLL Injection Failure** is a harmless cosmetic error that occurs if your PC is shut down while the patcher was active without entering a match. 
-> Ignore or simply click **Dismiss** and launch League normally (Your mod is completely functional).
+> The **"DLL Injection Failure"** warning in LTK is a harmless false positive that occurs if your PC shuts down while the patcher is active without entering a match. 
+> Simply click **Dismiss** and launch League normally. Your mod remains fully functional.
 
 ## 🛠️ For Developers (Run from Source)
 
