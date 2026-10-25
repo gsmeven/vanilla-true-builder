@@ -52,7 +52,7 @@ The AI will generate the property override adhering to the 10 Laws of Curation. 
 Click the **`TEST`** button inside the Auditor. This compiles a standalone, isolated `.fantome` package for that specific champion and skin. Mount it in [LTK Manager](https://github.com/LeagueToolkit) and enter a match or Practice Tool to verify that models, submeshes, hitboxes, and spell effects render canonically without crashes or visual artifacts.
 
 ### Step 7: Submit Pull Request
-Once verified in-game, commit strictly the final `.bin.txt` override file(s) and submit your Pull Request.
+Once verified in-game, provide the complete `.zip` archive containing the relevant directory structure of the curated entity along with its `.bin.txt` file(s) (preserving the canonical `overrides/<entity>/skins/` hierarchy), and open your Pull Request.
 
 ## Technical Quality Gates
 
