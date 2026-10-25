@@ -27,11 +27,11 @@
 
 ## 📖 Overview
 
-**Vanilla True Builder (VTB)** is an automated desktop mod generator engineered specifically for **[LTK Manager](https://github.com/LeagueToolkit)**. With a single click, it compiles a clean and custom base-grade restoration mod (`.fantome`) directly from your local game installation.
+**Vanilla True Builder (VTB)** is an automated visual restoration engine engineered specifically for **[LTK Manager](https://github.com/LeagueToolkit)**. With a single click, it compiles a tailored, zero-bloat restoration package (`.fantome`) directly from your local game installation.
 
-Traditional custom mods often rely on hacky placeholder textures, foreign dummy meshes, or destructive overrides that trigger DirectX crashes and hitbox desynchronization. Instead, VTB operates natively on official Riot archives using reverse-engineering toolchains [ritobin](https://github.com/LeagueToolkit/ritobin-tools) & [wadtools](https://github.com/LeagueToolkit/wadtools).
+Traditional custom mods rely on placeholder textures, foreign dummy meshes, or destructive overrides that trigger DirectX crashes and hitbox desynchronization. Instead, VTB operates natively on official Riot archives, leveraging proven reverse-engineering toolchains ([ritobin](https://github.com/LeagueToolkit/ritobin-tools) & [wadtools](https://github.com/LeagueToolkit/wadtools)) to patch game data directly at the engine level.
 
-Operating on a strict non-invasive doctrine, VTB imports zero external assets. Every supported element—from champion animation controllers to faction structures and map properties—is canonically rebound to the native Base definitions already compiled in your client. Whenever a valid asset descriptor is strictly required by the graphics pipeline to silence visual clutter safely, the engine synthesizes hardware-compliant bytecode on the fly rather than bundling foreign files. This guarantees total visual restoration with zero bloat, uncompromised hitbox parity, and absolute game stability.
+Operating on a strict non-invasive doctrine, VTB imports zero external assets. Every supported element—from champion animation controllers to faction structures and map properties—is canonically rebound to the native Base definitions already compiled in your client. When a valid asset descriptor is required by the graphics pipeline to silence visual clutter safely, the engine synthesizes hardware-compliant bytecode on the fly instead of bundling foreign files. This guarantees total visual restoration with zero bloat, uncompromised hitbox parity, and absolute game stability.
 
 > [!IMPORTANT]
 > * **First-Time Build Duration:** The initial compilation takes a few minutes as VTB processes and sanitizes multiple WADs in parallel.
