@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🏛️ Vanilla True Builder
+# Vanilla True Builder
 
 **The ultimate canonical Vanilla mod builder for [League of Legends](https://www.leagueoflegends.com) & [LTK Manager](https://github.com/LeagueToolkit).**  
 *Build a pure, zero-bloat Vanilla mod `.fantome` in seconds.*
