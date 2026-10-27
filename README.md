@@ -21,7 +21,7 @@
 [🔬 Skin Curation](#-skin-curation) •
 [👥 Ecosystem & Credits](#-author--ecosystem)
 
-<img src="preview.jpg" alt="Vanilla True Builder Hextech Dashboard" width="850px" style="border-radius: 8px; border: 1px solid #1a2530; box-shadow: 0 8px 24px rgba(0,0,0,0.6);" />
+<img src="preview.jpg" alt="Vanilla True Builder" width="850px" style="border-radius: 8px; border: 1px solid #1a2530; box-shadow: 0 8px 24px rgba(0,0,0,0.6);" />
 
 </div>
 
@@ -258,11 +258,11 @@ flowchart TD
 ```
 
 ### `main.py` — Production Pipeline
-* **Multiprocessing:** Parallel extraction and decompilation leveraging dynamic process pools scaled to system CPU limits (`MAX_PARALLEL_WAD_JOBS`).
+* **Master User Interface (GUI):** The central visual suite and master command center driving the entire restoration lifecycle—providing intuitive module toggles, cache state diagnostics, live console telemetry, and one-click dispatch to the Auditor (`SKIN FIX`). Features a custom frameless window with native Windows API interop (`ctypes.windll.user32`) for window snapping, borderless dragging, and minimize/maximize logic.
+* **Multiprocessing Engine:** Parallel extraction and decompilation leveraging dynamic process pools scaled to system CPU limits (`MAX_PARALLEL_WAD_JOBS`) within isolated system `%TEMP%` scratch workspaces.
 * **Native Toolchains:** Direct, zero-overhead CLI integration with LeagueToolkit's Rust binaries (`wadtools` & `ritobin-tools`), utilizing selective regex archive extraction and verb-based binary compilation.
-* **Module Scoping (`options`):** Granular restoration control via GUI checkboxes or CLI flags (`--no-*`), paired with selective post-build target filtering (`_is_mod_target_file`) for tailored `.fantome` packaging.
-* **Progress Scheduling:** Multi-phase weighted progress calculation across Map11, UI/Global, Champion batches, and `.fantome` packaging adapted dynamically to active modules.
-* **Hextech GUI:** Custom-styled, frameless Tkinter window with native Windows API interop (`ctypes.windll.user32`) providing smooth window dragging, snapping, minimize/maximize logic, and console telemetry.
+* **Module Scoping (`options`):** Granular restoration control via GUI checkboxes or CLI flags (`--no-*`), paired with selective post-build target filtering (`_is_mod_target_file`) to package strictly active modules into the `.fantome` container.
+* **Dynamic Progress Scheduling:** Multi-phase weighted progress calculation across Map11, UI/Global, Champion batches, and packaging stages, dynamically adapting percentage spans to active modules.
 
 ### `auditor.py` — Skin Curation & Test
 A suite for skin analysis and instant curation (AI assist):
