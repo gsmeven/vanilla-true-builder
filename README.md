@@ -196,12 +196,12 @@ $$\text{Cache Validity} = (\text{WAD\_HASH} = \text{Current WAD}) \land (\text{S
 
 * **Archive Fingerprint:** Calculates a composite SHA-256 signature from the target WAD's resolved POSIX path, byte size, and nanosecond modification time (`st_mtime_ns`).
 * **Pipeline Engine Fingerprint:** Truncated SHA-256 derived from `APP_VERSION`. If the VTB pipeline or submesh contract engine code updates, obsolete caches invalidate automatically.
-* **Master Flat Storage:** Cached outputs are stored in flat directories (`cache/<wad_name>/.hash`), allowing unchanged archives to bypass extraction, decompilation, sanitization, and recompilation in **0ms**.
+* **Master Flat Storage:** Cached outputs are stored in flat directories (`cache/<wad_name>/.hash`), allowing unchanged archives to bypass extraction, decompilation, sanitization, and instant recompilation.
 
 ### 6. Native Toolchains (`wadtools` & `ritobin-tools`)
 VTB interfaces directly with LeagueToolkit's bleeding-edge Rust ecosystem (`crates/ltk_wad` and `crates/ltk_ritobin`), eliminating legacy compatibility wrappers and runtime architecture probing overhead:
 * **Selective WAD Extraction (`wadtools`):** Operates directly on Riot's Zstandard-compressed `.wad.client` archives. Leverages targeted regex filters (`-x`) to extract exclusively required skin `.bin` properties and `.skn` geometry files in seconds, bypassing gigabytes of unused audio and animation streams.
-* **Property Tree Compilation (`ritobin-tools`):** Utilizes native verb-based CLI commands (`convert <in> -o <out> -t rito/bin -H <hashes>`), guaranteeing 100% loss-free serialization and full compatibility with Riot's modern 64-bit hash types (`hash[u64]`, `xxh3`) and dynamic property trees.
+* **Property Tree Compilation (`ritobin-tools`):** Utilizes native verb-based CLI commands (`convert <in> -o <out> -t rito/bin -H <hashes>`), guaranteeing loss-free serialization and full compatibility with Riot's modern 64-bit hash types (`hash[u64]`, `xxh3`) and dynamic property trees.
 
 ### 7. Multi-Core Processing (`MAX_PARALLEL_WAD_JOBS`)
 Processing over 160 champions and monolithic map archives sequentially would take hours. VTB leverages a multi-process architecture:
