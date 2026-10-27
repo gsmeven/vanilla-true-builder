@@ -562,25 +562,6 @@ def ensure_toolkit_binaries(
 			LOG.info("Using existing local tools (offline or unmodified).")
 
 
-# ==============================================================================
-# RITOBIN RUST / C++ DYNAMIC CLI ADAPTER (PR #284 COMPATIBLE)
-# ==============================================================================
-_RITOBIN_IS_RUST_CACHE: dict[Path, bool] = {}
-
-
-def is_rust_ritobin(ritobin_exe: Path) -> bool:
-	if ritobin_exe in _RITOBIN_IS_RUST_CACHE:
-		return _RITOBIN_IS_RUST_CACHE[ritobin_exe]
-	try:
-		res = run_cmd([str(ritobin_exe), "--help"])
-		output = (res.stdout or "") + (res.stderr or "")
-		is_rust = "convert" in output.lower()
-	except Exception:
-		is_rust = False
-	_RITOBIN_IS_RUST_CACHE[ritobin_exe] = is_rust
-	return is_rust
-
-
 def build_ritobin_cmd(
 	ritobin_exe: Path,
 	mode: str,
@@ -588,27 +569,16 @@ def build_ritobin_cmd(
 	output_path: Path,
 	hashes_dir: Path | None = None,
 ) -> list[str]:
-	if is_rust_ritobin(ritobin_exe):
-		cmd = [
-			str(ritobin_exe),
-			"convert",
-			str(input_path),
-			"-o", str(output_path),
-			"-t", "rito" if mode == "decompile" else "bin",
-		]
-		if hashes_dir and Path(hashes_dir).is_dir():
-			cmd += ["-H", str(hashes_dir)]
-		return cmd
-	else:
-		cmd = [
-			str(ritobin_exe),
-			"-i", "bin" if mode == "decompile" else "text",
-			"-o", "text" if mode == "decompile" else "bin",
-		]
-		if hashes_dir and Path(hashes_dir).is_dir():
-			cmd += ["-d", str(hashes_dir)]
-		cmd += [str(input_path), str(output_path)]
-		return cmd
+	cmd = [
+		str(ritobin_exe),
+		"convert",
+		str(input_path),
+		"-o", str(output_path),
+		"-t", "rito" if mode == "decompile" else "bin",
+	]
+	if hashes_dir and Path(hashes_dir).is_dir():
+		cmd += ["-H", str(hashes_dir)]
+	return cmd
 
 
 # ==============================================================================

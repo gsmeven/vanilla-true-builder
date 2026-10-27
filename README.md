@@ -198,12 +198,12 @@ $$\text{Cache Validity} = (\text{WAD\_HASH} = \text{Current WAD}) \land (\text{S
 * **Pipeline Engine Fingerprint:** Truncated SHA-256 derived from `APP_VERSION`. If the VTB pipeline or submesh contract engine code updates, obsolete caches invalidate automatically.
 * **Master Flat Storage:** Cached outputs are stored in flat directories (`cache/<wad_name>/.hash`), allowing unchanged archives to bypass extraction, decompilation, sanitization, and recompilation in **0ms**.
 
-### 6. Dynamic Adapter (Rust & C++ Ritobin)
-VTB natively bridges legacy and modern toolchains. Upon initialization, the engine probes `ritobin.exe --help` via `is_rust_ritobin()` to detect binary architecture:
-* **Rust Toolchain:** Formulates CLI arguments using verb commands (`convert <in> -o <out> -t rito/bin -H <hashes>`).
-* **Legacy C++ Toolchain:** Automatically switches to positional syntax (`-i bin/text -o text/bin -d <hashes> <in> <out>`).
+### 6. Native Toolchains (`wadtools` & `ritobin-tools`)
+VTB interfaces directly with LeagueToolkit's bleeding-edge Rust ecosystem (`crates/ltk_wad` and `crates/ltk_ritobin`), eliminating legacy compatibility wrappers and runtime architecture probing overhead:
+* **Selective WAD Extraction (`wadtools`):** Operates directly on Riot's Zstandard-compressed `.wad.client` archives. Leverages targeted regex filters (`-x`) to extract exclusively required skin `.bin` properties and `.skn` geometry files in seconds, bypassing gigabytes of unused audio and animation streams.
+* **Property Tree Compilation (`ritobin-tools`):** Utilizes native verb-based CLI commands (`convert <in> -o <out> -t rito/bin -H <hashes>`), guaranteeing 100% loss-free serialization and full compatibility with Riot's modern 64-bit hash types (`hash[u64]`, `xxh3`) and dynamic property trees.
 
-This dynamic adapter prevents toolchain breakage across automated CI/CD updates and community forks.
+Both binaries are compiled autonomously via the project's dedicated Rust CI/CD pipeline ([vtb-ltk-tools](https://github.com/gsmeven/vtb-ltk-tools)).
 
 ### 7. Multi-Core Processing (`MAX_PARALLEL_WAD_JOBS`)
 Processing over 160 champions and monolithic map archives sequentially would take hours. VTB leverages a multi-process architecture:
@@ -261,7 +261,7 @@ flowchart TD
 
 ### `main.py` — Production Pipeline
 * **Multiprocessing:** Parallel extraction and decompilation leveraging dynamic process pools scaled to system CPU limits (`MAX_PARALLEL_WAD_JOBS`).
-* **Dynamic Adapter:** Dynamically probes `ritobin.exe` to detect whether it is running the legacy C++ toolchain or the bleeding-edge Rust port, dynamically adjusting argument flags.
+* **Native Toolchains:** Direct, zero-overhead CLI integration with LeagueToolkit's Rust binaries (`wadtools` & `ritobin-tools`), utilizing selective regex archive extraction and verb-based binary compilation.
 * **Progress Scheduling:** Multi-phase weighted progress calculation across Map11, UI/Global, Champion batches, and `.fantome` packaging.
 * **Hextech GUI:** Custom-styled, frameless Tkinter window with native Windows API interop (`ctypes.windll.user32`) providing smooth window dragging, snapping, minimize/maximize logic, and console telemetry.
 
