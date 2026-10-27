@@ -119,7 +119,7 @@ The pipeline operates directly on the game client's serialized property trees (`
 ### 1. Binary Patch (`patch_skn_submesh_inplace`)
 Certain legendary and mythic skins (e.g., True Damage Ekko) introduce divergent 3D submesh names in their `.skn` definitions. When spell scripts execute vanishing, visibility, or material shader callbacks (such as hiding a weapon mesh during cast animations or morph states), the rigid Base animation graph fails to locate the expected submesh string, causing invisible models or stuck geometry artifacts.
 
-VTB resolves this entirely in memory without hosting or distributing external 3D models. The engine parses the native Riot `.skn` binary structure (`0x00112233` header), locates the target submesh within the 64-byte null-padded descriptor array, and patches the identifier in **0ms**:
+VTB resolves this entirely in memory without hosting or distributing external 3D models. The engine parses the native Riot `.skn` binary structure (`0x00112233` header), locates the target submesh within the 64-byte null-padded descriptor array, and patches the identifier:
 
 ```python
 def patch_skn_submesh_inplace(base_skn_bytes: bytes, old_name: str, new_name: str) -> bytes:
