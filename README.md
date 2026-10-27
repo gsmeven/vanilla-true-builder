@@ -213,7 +213,7 @@ Processing over 160 champions and monolithic map archives sequentially would tak
 VTB maintains its entire operational dependency stack autonomously without manual user intervention:
 * **Self-Update ([`vanilla-true-builder`](https://github.com/gsmeven/vanilla-true-builder)):** When a newer application release is published on GitHub, VTB downloads the updated package in the background, renames the running process to `_old.exe`, moves the new binary into place, spawns the updated instance, and terminates the parent cleanly.
 * **Toolchain ([`vtb-ltk-tools`](https://github.com/gsmeven/vtb-ltk-tools)):** Rather than bundling static, outdated binaries or requiring users to compile Rust toolchains locally, VTB synchronizes directly with a dedicated CI/CD repository that continuously tracks, builds, and distributes hardened 64-bit Windows binaries of `wadtools.exe` and `ritobin.exe` via automated release packages (`tools.zip`).
-* **Synchronization:** Hash containers and tool archives are queried using HTTP conditional headers (`If-None-Match`). If upstream endpoints return HTTP `304 Not Modified`, redundant downloads, disk writes, and bandwidth consumption are eliminated in 0ms.
+* **Synchronization:** Hash containers and tool archives are queried using HTTP conditional headers (`If-None-Match`). If upstream endpoints return HTTP `304 Not Modified`, redundant downloads, disk writes, and bandwidth consumption are entirely eliminated.
 * **Hash Assembly:** Automatically detects, downloads, and merges segmented CommunityDragon hash streams (`hashes.game.txt.0`, `.1`, etc.) into a unified local hash container required for accurate asset-path resolution in `wadtools`.
 
 ### 9. Structural Integrity
