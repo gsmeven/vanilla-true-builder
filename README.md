@@ -383,12 +383,10 @@ python main.py --dry-run
 
 ## ☕ Buy Me a Coffee
 
-Vanilla True Builder is an independent open-source project created and maintained to keep League of Legends visually clean, competitive, and bloat-free.
-
-If VTB saved your time, improved your clarity in-game, or helped you build mods easily, consider supporting its continuous development and patch maintenance:
+If Vanilla True Builder saved your time or helped you build clean mods, consider supporting its ongoing development and patch maintenance:
 
 <a href='https://ko-fi.com/gsmeven' target='_blank'>
-  <img height='40' src='https://ko-fi.com/img/githubbutton_sm.svg' alt='Support Me on Ko-fi' />
+  <img height='38' src='https://ko-fi.com/img/githubbutton_sm.svg' alt='Support me on Ko-fi' />
 </a>
 
 ## 👤 Author & Ecosystem
