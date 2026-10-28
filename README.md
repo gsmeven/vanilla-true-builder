@@ -19,7 +19,7 @@
 [⚙️ Technical Core](#️-technical-deep-dive) •
 [🏗️ Architecture](#️-architecture) •
 [🔬 Skin Curation](#-skin-curation) •
-[☕ Buy me a coffee](#-support) •
+[☕ Buy Me a Coffee](#-buy-me-a-coffee) •
 [👥 Ecosystem & Credits](#-author--ecosystem)
 
 <img src="preview.jpg" alt="Vanilla True Builder" width="850px" style="border-radius: 8px; border: 1px solid #1a2530; box-shadow: 0 8px 24px rgba(0,0,0,0.6);" />
@@ -381,15 +381,13 @@ python main.py --dry-run
 | `--no-finishers` | `flag` | Skip nexus victory/defeat finisher neutralization module. |
 | `--no-recalls` | `flag` | Skip special recalls (Honor, Challenger) module. |
 
-## ☕ Buy me a coffee
+## ☕ Buy Me a Coffee
 
 Vanilla True Builder is an independent open-source project created and maintained to keep League of Legends visually clean, competitive, and bloat-free.
 
 If VTB saved your time, improved your clarity in-game, or helped you build mods easily, consider supporting its continuous development and patch maintenance:
 
-<a href='https://ko-fi.com/gsmeven' target='_blank'>
-  <img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi3.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' />
-</a>>
+<script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script><script type='text/javascript'>kofiwidget2.init('Support me on Ko-fi', '#72a4f2', 'B0U029MBIE');kofiwidget2.draw();</script> 
 
 ## 👤 Author & Ecosystem
 
