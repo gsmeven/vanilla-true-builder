@@ -387,7 +387,9 @@ Vanilla True Builder is an independent open-source project created and maintaine
 
 If VTB saved your time, improved your clarity in-game, or helped you build mods easily, consider supporting its continuous development and patch maintenance:
 
-<script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script><script type='text/javascript'>kofiwidget2.init('Support me on Ko-fi', '#72a4f2', 'B0U029MBIE');kofiwidget2.draw();</script> 
+<a href='https://ko-fi.com/gsmeven' target='_blank'>
+  <img height='40' src='https://ko-fi.com/img/githubbutton_sm.svg' alt='Support Me on Ko-fi' />
+</a>
 
 ## 👤 Author & Ecosystem
 
