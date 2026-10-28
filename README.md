@@ -19,7 +19,6 @@
 [⚙️ Technical Core](#️-technical-deep-dive) •
 [🏗️ Architecture](#️-architecture) •
 [🔬 Skin Curation](#-skin-curation) •
-[☕ Buy Me a Coffee](#-buy-me-a-coffee) •
 [👥 Ecosystem & Credits](#-author--ecosystem)
 
 <img src="preview.jpg" alt="Vanilla True Builder" width="850px" style="border-radius: 8px; border: 1px solid #1a2530; box-shadow: 0 8px 24px rgba(0,0,0,0.6);" />
@@ -380,16 +379,6 @@ python main.py --dry-run
 | `--no-accents` | `flag` | Skip map accents, clash banners, and tournament statues module. |
 | `--no-finishers` | `flag` | Skip nexus victory/defeat finisher neutralization module. |
 | `--no-recalls` | `flag` | Skip special recalls (Honor, Challenger) module. |
-
-## ☕ Buy Me a Coffee
-
-If Vanilla True Builder saved your time or helped you build clean mods, consider supporting its ongoing development and patch maintenance:
-
-<p align="center">
-  <a href='https://ko-fi.com/gsmeven' target='_blank'>
-    <img height='42' src='https://ko-fi.com/img/githubbutton_sm.svg' alt='Support me on Ko-fi' />
-  </a>
-</p>
 
 ## 👤 Author & Ecosystem
 
