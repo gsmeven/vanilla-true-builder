@@ -11,7 +11,6 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%20x64-0078d7?style=for-the-badge&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![Package](https://img.shields.io/badge/Output-.fantome-785a28?style=for-the-badge&logo=zip&logoColor=white)](https://github.com/LeagueToolkit)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/gsmeven)
 
 [📖 Overview](#-overview) •
 [📌 Setup](#-setup) •
@@ -380,6 +379,12 @@ python main.py --dry-run
 | `--no-accents` | `flag` | Skip map accents, clash banners, and tournament statues module. |
 | `--no-finishers` | `flag` | Skip nexus victory/defeat finisher neutralization module. |
 | `--no-recalls` | `flag` | Skip special recalls (Honor, Challenger) module. |
+
+## ☕ Support
+
+If you find this tool useful and want to support its ongoing maintenance and new features, consider buying me a coffee:
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/gsmeven)
 
 ## 👤 Author & Ecosystem
 
