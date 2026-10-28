@@ -11,6 +11,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%20x64-0078d7?style=for-the-badge&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![Package](https://img.shields.io/badge/Output-.fantome-785a28?style=for-the-badge&logo=zip&logoColor=white)](https://github.com/LeagueToolkit)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/gsmeven)
 
 [📖 Overview](#-overview) •
 [📌 Setup](#-setup) •
