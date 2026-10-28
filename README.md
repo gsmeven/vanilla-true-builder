@@ -19,6 +19,7 @@
 [⚙️ Technical Core](#️-technical-deep-dive) •
 [🏗️ Architecture](#️-architecture) •
 [🔬 Skin Curation](#-skin-curation) •
+[☕ Support](#-support) •
 [👥 Ecosystem & Credits](#-author--ecosystem)
 
 <img src="preview.jpg" alt="Vanilla True Builder" width="850px" style="border-radius: 8px; border: 1px solid #1a2530; box-shadow: 0 8px 24px rgba(0,0,0,0.6);" />
@@ -382,9 +383,15 @@ python main.py --dry-run
 
 ## ☕ Support
 
-If you find this tool useful and want to support its ongoing maintenance and new features, consider buying me a coffee:
+Vanilla True Builder is an independent open-source project created and maintained to keep League of Legends visually clean, competitive, and bloat-free.
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/gsmeven)
+If VTB saved your time, improved your clarity in-game, or helped you build mods easily, consider supporting its continuous development and patch maintenance:
+
+<p align="left">
+  <a href="https://ko-fi.com/gsmeven" target="_blank">
+    <img src="https://ko-fi.com/img/githubbutton_sm.svg" height="42" alt="Support on Ko-fi">
+  </a>
+</p>
 
 ## 👤 Author & Ecosystem
 
