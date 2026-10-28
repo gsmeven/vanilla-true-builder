@@ -385,9 +385,11 @@ python main.py --dry-run
 
 If Vanilla True Builder saved your time or helped you build clean mods, consider supporting its ongoing development and patch maintenance:
 
-<a href='https://ko-fi.com/gsmeven' target='_blank'>
-  <img height='38' src='https://ko-fi.com/img/githubbutton_sm.svg' alt='Support me on Ko-fi' />
-</a>
+<p align="center">
+  <a href='https://ko-fi.com/gsmeven' target='_blank'>
+    <img height='42' src='https://ko-fi.com/img/githubbutton_sm.svg' alt='Support me on Ko-fi' />
+  </a>
+</p>
 
 ## 👤 Author & Ecosystem
 
