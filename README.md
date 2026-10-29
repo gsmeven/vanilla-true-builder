@@ -1,5 +1,7 @@
 <div align="center">
+   
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/B0U029MBIE)
+
 # Vanilla True Builder
 
 **The ultimate canonical Vanilla mod builder for [League of Legends](https://www.leagueoflegends.com) & [LTK Manager](https://github.com/LeagueToolkit).**  
