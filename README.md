@@ -5,6 +5,8 @@
 **The ultimate canonical Vanilla mod builder for [League of Legends](https://www.leagueoflegends.com) & [LTK Manager](https://github.com/LeagueToolkit).**  
 *Build a pure, zero-bloat Vanilla mod `.fantome` in seconds.*
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/B0U029MBIE)
+
 [![Release](https://img.shields.io/github/v/release/gsmeven/vanilla-true-builder?style=for-the-badge&logo=github&color=0ac8b9&logoColor=white)](https://github.com/gsmeven/vanilla-true-builder/releases)
 [![CI/CD Tools](https://img.shields.io/badge/CI%2FCD-vtb--ltk--tools-c8aa6e?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/gsmeven/vtb-ltk-tools)
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
