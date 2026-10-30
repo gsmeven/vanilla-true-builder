@@ -65,18 +65,6 @@ Once verified in-game, commit the generated `.bin.txt` file(s) strictly under `o
 3. **Verification Proof:** Mention the target champion, skin ID, and brief confirmation that the fix was verified in-game via the Auditor **`TEST`** button.
 4. **Law Compliance:** Submitted templates must strictly adhere to the 10 Laws in `ai_context.md` (plain-text `.bin.txt` only, no binary files).
 
-## Licensing & Contributor Terms
+## License
 
-By submitting a Pull Request, patch, or any contribution (including plain-text overrides and curation rule adjustments) to **Vanilla True Builder**, you explicitly agree to the following terms:
-
-1. **Inbound License:**  
-   Your contributions are submitted under the terms of the project's **[PolyForm Noncommercial License 1.0.0](LICENSE)**. You certify that you have the legal right to submit this work.
-
-2. **Grant to Maintainer:**  
-   You grant the project maintainer (**Neve** / **gsmeven**) a perpetual, irrevocable, worldwide, royalty-free license to integrate, modify, maintain, and distribute your contribution as part of the official Vanilla True Builder repository and compiled releases.
-
-3. **Strictly Non-Commercial:**  
-   You acknowledge that this project and all derivative works are strictly non-commercial. No contribution grants any entitlement to commercial exploitation, monetary compensation, or proprietary lock-in.
-
-4. **Integrity & Fan Policy:**  
-   You certify that your submission contains plain-text configurations (`.bin.txt`) or code only (no raw proprietary Riot binaries) and strictly adheres to applicable fan-content policies regarding League of Legends.
+By contributing to Vanilla True Builder, you agree that your contributions will be licensed under the project's [GNU General Public License v3.0](LICENSE).
