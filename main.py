@@ -961,11 +961,18 @@ def _sanitize_finisher_text(text: str) -> tuple[str, int]:
 		out_text
 	)
 
-	out_text, c4 = re.subn(r'(?i)(\b(?:m_?)?Enabled\s*:\s*bool\s*=\s*)true', r'\g<1>false', out_text)
-	out_text, c5 = re.subn(r'(?i)(\bdisabled\s*:\s*bool\s*=\s*)false', r'\g<1>true', out_text)
-	changes += (c1 + c2 + c3 + c4 + c5)
+	out_text, c_bool = re.subn(
+		r'(?i)(\b(?:0x[0-9a-fA-F]+|(?:m_?)?(?:is)?(?:enabled|active))\s*:\s*bool\s*=\s*)true',
+		r'\g<1>false',
+		out_text
+	)
+	out_text, c_dis = re.subn(r'(?i)(\bdisabled\s*:\s*bool\s*=\s*)false', r'\g<1>true', out_text)
 
-	# Depth-aware loop to neutralize complex/simple emitter definition blocks cleanly
+	out_text, c_seq = re.subn(r'(?i)((?:Chaos|Order)?Sequence\s*:\s*hash\s*=\s*)"[^"]+"', r'\g<1>0x00000000', out_text)
+	out_text, c_ui = re.subn(r'(?i)(Ui(?:Loadable|ElementGroup)\s*:\s*hash\s*=\s*)"[^"]+"', r'\g<1>0x00000000', out_text)
+
+	changes += (c1 + c2 + c3 + c_bool + c_dis + c_seq + c_ui)
+
 	lines = out_text.splitlines(keepends=True)
 	out_lines: list[str] = []
 	i = 0
@@ -1003,7 +1010,7 @@ def clean_finisher_elements(
 	target_files: list[Path] = []
 	for p in txt_files:
 		rel = p.relative_to(wad_dir).as_posix().lower()
-		if rel in {"gameplay.endofgame.bin.txt", "gameplay.nexusfinisher.bin.txt"} or rel.endswith("nexusfinishers.txt") or rel.endswith("nexusfinishers"):
+		if any(k in rel for k in ("nexusfinisher", "endofgame")):
 			target_files.append(p)
 			
 	total = len(target_files)
@@ -2095,8 +2102,8 @@ def _is_mod_target_file(wad_name: str, rel_path: str, options: dict[str, bool] |
 		return True
 
 	if opt_finishers:
-		if wad_lower == "ui.wad.client":
-			if rel_lower in {"gameplay.endofgame.bin", "gameplay.nexusfinisher.bin"}:
+		if wad_lower in {"ui.wad.client", "global.wad.client"}:
+			if any(k in rel_lower for k in ("nexusfinisher", "endofgame")):
 				return True
 		elif wad_lower == "global.wad.client":
 			if rel_lower.endswith("loadouts/nexusfinishers"):
