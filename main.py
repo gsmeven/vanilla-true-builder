@@ -2105,9 +2105,6 @@ def _is_mod_target_file(wad_name: str, rel_path: str, options: dict[str, bool] |
 		if wad_lower in {"ui.wad.client", "global.wad.client"}:
 			if any(k in rel_lower for k in ("nexusfinisher", "endofgame")):
 				return True
-		elif wad_lower == "global.wad.client":
-			if rel_lower.endswith("loadouts/nexusfinishers"):
-				return True
 
 	if opt_recalls and wad_lower == "global.wad.client" and "shared" in rel_lower:
 		return True
