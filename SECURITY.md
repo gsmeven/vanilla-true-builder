@@ -4,7 +4,7 @@ Vanilla True Builder (VTB) is engineered on the principles of full transparency,
 
 This document outlines our security architecture, confirming that the software is free of malicious payloads, spyware, and unauthorized background processes.
 
-## 100% Open Source & Auditable
+## Open Source & Auditable
 
 * Plain-Text Codebase: The entire project is written in readable, uncompiled Python (`main.py` and `auditor.py`). No code is obfuscated or encrypted.
 * Independent Audit: Users and security researchers can inspect, review, or modify the source code directly. There are no packed loaders or hidden payloads.
