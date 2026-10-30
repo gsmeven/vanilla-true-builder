@@ -2458,7 +2458,7 @@ def create_standalone_fantome(
 		"Author": "Neve",
 		"Version": APP_VERSION,
 		"Description": desc_str,
-		"License": "GPL-3.0",
+		"License": "CC-BY-NC-SA-4.0",
 	}
 	info_json_bytes = json.dumps(metadata, indent=2, ensure_ascii=False).encode("utf-8")
 
@@ -2480,22 +2480,21 @@ This project stands on the shoulders of the true pioneers of the League of Legen
 Compiled and packaged via **[Vanilla True Builder](https://github.com/gsmeven/vanilla-true-builder)** by **[Neve](https://github.com/gsmeven)**.
 """
 
-	# 3. LICENSES (OFFICIAL GPL-3.0)
+	# 3. LICENSE (OFFICIAL CC-BY-NC-SA-4.0)
 	license_text = """Copyright (C) 2026 Neve (https://github.com/gsmeven/vanilla-true-builder)
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""
+	
+	Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
+	Full Terms: https://creativecommons.org/licenses/by-nc-sa/4.0/
+	
+	Permissions & Conditions:
+	• Attribution (BY): Credit the author (Neve) and link to the upstream repository.
+	• Non-Commercial (NC): Commercial use, monetization, paywalls, or resale are strictly prohibited.
+	• Share-Alike (SA): Any modifications, updates, or derivative builds must inherit this exact license.
+	
+	Disclaimer:
+	Provided "AS IS", without warranties of any kind. Unofficial community project;
+	League of Legends and all related game assets belong to Riot Games, Inc.
+	"""
 
 	archive_entries: list[tuple[Path, str]] = []
 	seen_targets: set[str] = set()

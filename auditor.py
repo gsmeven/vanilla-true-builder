@@ -2233,7 +2233,7 @@ class ChampionAuditorApp:
 						"Author": "Neve",
 						"Version": APP_VERSION,
 						"Description": f"Vanilla restored for: {champ} (Skin{skin_id}).",
-						"License": "GPL-3.0",
+						"License": "CC-BY-NC-SA-4.0",
 					}
 					info_json_bytes = json.dumps(metadata, indent=2, ensure_ascii=False).encode("utf-8")
 
@@ -2245,18 +2245,17 @@ Compiled and packaged via **[Vanilla True Builder](https://github.com/gsmeven/va
 
 					license_text = """Copyright (C) 2026 Neve (https://github.com/gsmeven/vanilla-true-builder)
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
+Full Terms: https://creativecommons.org/licenses/by-nc-sa/4.0/
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+Permissions & Conditions:
+• Attribution (BY): Credit the author (Neve) and link to the upstream repository.
+• Non-Commercial (NC): Commercial use, monetization, paywalls, or resale are strictly prohibited.
+• Share-Alike (SA): Any modifications, updates, or derivative builds must inherit this exact license.
 
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
+Disclaimer:
+Provided "AS IS", without warranties of any kind. Unofficial community project;
+League of Legends and all related game assets belong to Riot Games, Inc.
 """
 
 					with zipfile.ZipFile(output_fantome, "w", compression=zipfile.ZIP_DEFLATED) as arc:
