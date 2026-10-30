@@ -2483,18 +2483,18 @@ Compiled and packaged via **[Vanilla True Builder](https://github.com/gsmeven/va
 	# 3. LICENSE (OFFICIAL CC-BY-NC-SA-4.0)
 	license_text = """Copyright (C) 2026 Neve (https://github.com/gsmeven/vanilla-true-builder)
 	
-	Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
-	Full Terms: https://creativecommons.org/licenses/by-nc-sa/4.0/
+Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
+Full Terms: https://creativecommons.org/licenses/by-nc-sa/4.0/
 	
-	Permissions & Conditions:
-	• Attribution (BY): Credit the author (Neve) and link to the upstream repository.
-	• Non-Commercial (NC): Commercial use, monetization, paywalls, or resale are strictly prohibited.
-	• Share-Alike (SA): Any modifications, updates, or derivative builds must inherit this exact license.
+Permissions & Conditions:
+• Attribution (BY): Credit the author (Neve) and link to the upstream repository.
+• Non-Commercial (NC): Commercial use, monetization, paywalls, or resale are strictly prohibited.
+• Share-Alike (SA): Any modifications, updates, or derivative builds must inherit this exact license.
 	
-	Disclaimer:
-	Provided "AS IS", without warranties of any kind. Unofficial community project;
-	League of Legends and all related game assets belong to Riot Games, Inc.
-	"""
+Disclaimer:
+Provided "AS IS", without warranties of any kind. Unofficial community project;
+League of Legends and all related game assets belong to Riot Games, Inc.
+"""
 
 	archive_entries: list[tuple[Path, str]] = []
 	seen_targets: set[str] = set()
