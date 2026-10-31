@@ -255,10 +255,8 @@ _SRS_TO_CANONICAL_TEX_RULES: tuple[tuple[re.Pattern, Callable[[re.Match], str]],
 _ACCENT_OMISSION_PATTERNS = (
 	re.compile(r"(?i)godrays?"),
 	re.compile(r"(?i)statues?"),
-	re.compile(r"(?i)platform?"),
 	re.compile(r"(?i)plinths?"),
 	re.compile(r"(?i)\bhol_"),
-	re.compile(r"(?i)sodapop"),
 )
 
 _TARGET_TYPES = {
@@ -655,6 +653,11 @@ def _iter_map11_master_vital_bins(root: Path) -> list[Path]:
 					if idx < len(rel_parts) - 1:
 						char_name = rel_parts[idx + 1]
 
+				if char_name in EVENT_CHARACTERS:
+					if file_lower in {f"{char_name}.bin", "root.bin"} or re.fullmatch(r"skin\d+\.bin", file_lower):
+						vitals.append(p)
+					continue
+
 				if char_name in all_target_chars:
 					if char_name in {"turret", "turretrubble", "inhibitor", "nexus"}:
 						if re.fullmatch(r"skin\d+\.bin", file_lower):
@@ -674,14 +677,6 @@ def _iter_map11_master_vital_bins(root: Path) -> list[Path]:
 				continue
 
 			if p.as_posix().lower().endswith("maps/shipping/map11/map11.bin") or file_lower == "map11.bin":
-				vitals.append(p)
-				continue
-
-			if "particle" in file_lower or "particles" in rel_parts:
-				vitals.append(p)
-				continue
-
-			if any(ev in rel_parts for ev in EVENT_CHARACTERS):
 				vitals.append(p)
 				continue
 
