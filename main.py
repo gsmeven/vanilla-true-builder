@@ -253,9 +253,8 @@ _SRS_TO_CANONICAL_TEX_RULES: tuple[tuple[re.Pattern, Callable[[re.Match], str]],
 )
 
 _ACCENT_OMISSION_PATTERNS = (
-	re.compile(r"(?i)godrays?"),
-	re.compile(r"(?i)statues?"),
 	re.compile(r"(?i)plinths?"),
+	re.compile(r"(?i)\bhall_of_legends?"),
 	re.compile(r"(?i)\bhol_"),
 )
 
@@ -813,21 +812,22 @@ def _sanitize_text_content(text: str, filename: str) -> tuple[str, int]:
 
 		out_text, c_cfg = re.subn(
 			r'(?i)(\bmMapObjectsCFG\s*:\s*\w+\s*=\s*)"[^"]*"',
-			r'\g<1>"assets/maps/deprecated/map11/cfg/objectcfg_srx.cfg"',
+			r'\g<1>"ASSETS/Maps/Deprecated/Map11/CFG/objectcfg_SRX.cfg"',
 			out_text
 		)
 
 		out_text, c_ini = re.subn(
 			r'(?i)(\bmWorldParticlesINI\s*:\s*\w+\s*=\s*)"[^"]*"',
-			r'\g<1>"assets/maps/particles/deprecated/map11/particles_srx.ini"',
+			r'\g<1>"ASSETS/Maps/Particles/Deprecated/Map11/Particles_SRX.ini"',
 			out_text
 		)
 
 		out_text, c_res = re.subn(
-			r'(?i)("Maps/Shipping/Map11/MapSkins/)[^/"]+(/Resources")',
-			r'\g<1>Default\g<2>',
+			r'(?i)(\bmResourceResolvers\s*:\s*list\[link\]\s*=\s*\{)[^}]*\}',
+			r'\g<1> "Maps/Shipping/Map11/MapSkins/Default/Resources" }',
 			out_text
 		)
+
 		changes += (c_geo + c_cfg + c_ini + c_res)
 
 	for pattern, replacer in _SRS_TO_CANONICAL_TEX_RULES:
