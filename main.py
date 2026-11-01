@@ -1326,8 +1326,6 @@ def fast_vanilla_revert(
 	base_text: str,
 	target_skin: str,
 	skin_numeric_id: str | None,
-	entity: str = "",
-	main_entity: str = "",
 ) -> str:
 	text = re.sub(
 		r'(?i)(["\'](?:Characters[/\\])?[^"\'/\\]+[/\\]Skins[/\\])Skin\d+(["\']\s*=\s*SkinCharacterDataProperties)',
