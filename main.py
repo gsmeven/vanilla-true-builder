@@ -1420,7 +1420,7 @@ def force_vanilla_existing_skins(
 		if template_file:
 			try:
 				raw_template = template_file.read_text(encoding="utf-8", errors="ignore")
-				m_alias = re.search(r'(?i)#\s*SUBMESH_ALIAS\s*:\s*([^\s-]+)\s*->\s*([^\r\n]+)', raw_template)
+				m_alias = re.search(r'(?i)#\s*SUBMESH_ALIAS\s*:\s*(\S+)\s*->\s*([^\r\n]+)', raw_template)
 
 				if m_alias:
 					m_parent_skin = re.search(r'skin(\d+)', template_file.stem, re.IGNORECASE)
