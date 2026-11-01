@@ -1451,8 +1451,6 @@ def force_vanilla_existing_skins(
 						template_content,
 						target_skin,
 						skin_numeric_id,
-						entity=c_name,
-						main_entity=main_entity,
 					)
 				if not dry_run:
 					out_txt.parent.mkdir(parents=True, exist_ok=True)
@@ -1487,8 +1485,6 @@ def force_vanilla_existing_skins(
 			base_text,
 			target_skin,
 			skin_numeric_id,
-			entity=c_name,
-			main_entity=main_entity,
 		)
 
 		if not dry_run:
@@ -3842,7 +3838,11 @@ class TkApp:
 						if not download_url:
 							download_url = f"{GITHUB_REPO_URL}/releases/download/{latest_tag}/VanillaTrueBuilder.zip"
 
+					html_url = data.get("html_url") or f"{GITHUB_REPO_URL}/releases/tag/{latest_tag}"
+					if getattr(sys, "frozen", False):
 						self.root.after(0, lambda: self._start_silent_update(download_url, latest_tag))
+					else:
+						self.root.after(0, lambda: self._notify_app_update(latest_tag, html_url))
 		except Exception:
 			pass
 
@@ -3854,14 +3854,17 @@ class TkApp:
 		self._set_status_badge(f"UPDATING {latest_tag}...", self.C_YELLOW_ACTIVE)
 		self._append_trace(f"[AUTO-UPDATE] Nova versão {latest_tag} encontrada. Atualizando silenciosamente...", tag="gold")
 
-		threading.Thread(
-			target=lambda: perform_silent_auto_update(
+		def _run_update():
+			success = perform_silent_auto_update(
 				download_url,
 				latest_tag,
 				log_callback=lambda msg: self.root.after(0, lambda: self._append_trace(f"[AUTO-UPDATE] {msg}", tag="cyan"))
-			),
-			daemon=True
-		).start()
+			)
+			if not success:
+				self.root.after(0, lambda: self._set_status_badge("UPDATE FAILED", self.C_RED_ERROR))
+				self.root.after(0, lambda: self._append_trace("[AUTO-UPDATE] Silent update failed.", tag="red"))
+
+		threading.Thread(target=_run_update, daemon=True).start()
 
 	def _notify_app_update(self, latest_tag: str, html_url: str) -> None:
 		self._set_status_badge(f"UPDATE: {latest_tag}", self.C_YELLOW_ACTIVE)
