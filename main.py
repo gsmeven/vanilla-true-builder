@@ -220,11 +220,12 @@ def resolve_app_icon() -> Path | None:
 
 
 # ==============================================================================
-# CANONICAL TERRAIN INTEGRITY RULES
+# VANILLA GAME INTEGRITY RULES & CENTRALIZED REGEX DEFINITIONS
 # ==============================================================================
-def _rule(pattern_stem: str, target_canonical: str) -> tuple[re.Pattern, Callable[[re.Match], str]]:
+def _rule(stem: str, target_canonical: str) -> tuple[re.Pattern, Callable[[re.Match], str]]:
+	pattern_stem = rf'[\w-]*{re.escape(stem)}\w*'
 	pattern = re.compile(
-		rf'(["\'][^"\']*[/\\]{pattern_stem}["\'][\s\S]{{1,600}}?texturePath:\s*file\s*=\s*)[^\r\n]+|'
+		rf'(["\'][^"\']*[/\\]{pattern_stem}["\'][^}}]*?texturePath:\s*file\s*=\s*)[^\r\n]+|'
 		rf'(["\'])[^"\']*(?:[/\\]|^){pattern_stem}\.tex\2',
 		flags=re.IGNORECASE
 	)
@@ -239,24 +240,34 @@ def _rule(pattern_stem: str, target_canonical: str) -> tuple[re.Pattern, Callabl
 
 
 _SRS_TO_CANONICAL_TEX_RULES: tuple[tuple[re.Pattern, Callable[[re.Match], str]], ...] = (
-	_rule(r"[\w-]*Ground_C3_MidLane\w*", "assets/maps/kitpieces/srx/base/textures/terrain_midlane_ground_a.tex"),
-	_rule(r"[\w-]*Ground_A1_AlcoveTop\w*", "assets/maps/kitpieces/srs/base/textures/ground_a1_alcovetop_a.tex"),
-	_rule(r"[\w-]*Ground_E5_AlcoveBot\w*", "assets/maps/kitpieces/srs/base/textures/ground_e5_alcovebot_a.tex"),
-	_rule(r"[\w-]*Ground_D1_ChaosBase\w*", "assets/maps/kitpieces/srs/base/textures/ground_d1_chaosbase_a.tex"),
-	_rule(r"[\w-]*Ground_D2_ChaosBase\w*", "assets/maps/kitpieces/srs/base/textures/ground_d2_chaosbase_a.tex"),
-	_rule(r"[\w-]*Ground_E1_ChaosBase\w*", "assets/maps/kitpieces/srs/base/textures/ground_e1_chaosbase_a.tex"),
-	_rule(r"[\w-]*Ground_E2_ChaosBase\w*", "assets/maps/kitpieces/srs/base/textures/ground_e2_chaosbase_a.tex"),
-	_rule(r"[\w-]*Ground_A4_OrderBase\w*", "assets/maps/kitpieces/srs/base/textures/ground_a4_orderbase_a.tex"),
-	_rule(r"[\w-]*Ground_A5_OrderBase\w*", "assets/maps/kitpieces/srs/base/textures/ground_a5_orderbase_a.tex"),
-	_rule(r"[\w-]*Ground_B4_OrderBase\w*", "assets/maps/kitpieces/srs/base/textures/ground_b4_orderbase_a.tex"),
-	_rule(r"[\w-]*Ground_B5_OrderBase\w*", "assets/maps/kitpieces/srs/base/textures/ground_b5_orderbase_a.tex"),
+	_rule("Periph_Top_H", "assets/maps/kitpieces/srx/base/textures/terrain_north_toplane_periph_b_1bitalpha.tex"),
+	_rule("Ground_C3_MidLane", "assets/maps/kitpieces/srx/base/textures/terrain_midlane_ground_a.tex"),
+	_rule("Ground_A1_AlcoveTop", "assets/maps/kitpieces/srs/base/textures/ground_a1_alcovetop_a.tex"),
+	_rule("Ground_E5_AlcoveBot", "assets/maps/kitpieces/srs/base/textures/ground_e5_alcovebot_a.tex"),
+	_rule("Ground_D1_ChaosBase", "assets/maps/kitpieces/srs/base/textures/ground_d1_chaosbase_a.tex"),
+	_rule("Ground_D2_ChaosBase", "assets/maps/kitpieces/srs/base/textures/ground_d2_chaosbase_a.tex"),
+	_rule("Ground_E1_ChaosBase", "assets/maps/kitpieces/srs/base/textures/ground_e1_chaosbase_a.tex"),
+	_rule("Ground_E2_ChaosBase", "assets/maps/kitpieces/srs/base/textures/ground_e2_chaosbase_a.tex"),
+	_rule("Ground_A4_OrderBase", "assets/maps/kitpieces/srs/base/textures/ground_a4_orderbase_a.tex"),
+	_rule("Ground_A5_OrderBase", "assets/maps/kitpieces/srs/base/textures/ground_a5_orderbase_a.tex"),
+	_rule("Ground_B4_OrderBase", "assets/maps/kitpieces/srs/base/textures/ground_b4_orderbase_a.tex"),
+	_rule("Ground_B5_OrderBase", "assets/maps/kitpieces/srs/base/textures/ground_b5_orderbase_a.tex"),
 )
 
 _ACCENT_OMISSION_PATTERNS = (
 	re.compile(r"(?i)plinths?"),
-	re.compile(r"(?i)\bhall_of_legends?"),
-	re.compile(r"(?i)\bhol_"),
+	re.compile(r"(?i)hall_of_legends?"),
+	re.compile(r"(?i)(?<![a-z0-9])hol(?![a-z0-9])"),
 )
+
+_RECALL_VFX_PATTERN = re.compile(r'(?i)(?<![a-z0-9])Recall_(?:Honor|Challenger)\w*')
+
+_OTHER_INTEGRITY = {
+	"ha",
+	"bw",
+	"bilgewater",
+	"aram",
+}
 
 _TARGET_TYPES = {
 	"vfxsystemdefinitiondata",
@@ -325,8 +336,6 @@ BANNER_CHARACTERS = {
 	"srx_banner_vertical",
 	"srx_banner_verticalthin",
 }
-
-_RECALL_VFX_PATTERN = re.compile(r'(?i)\bRecall_(?:Honor|Challenger)\w*')
 
 
 # ==============================================================================
@@ -963,7 +972,7 @@ def _sanitize_finisher_text(text: str) -> tuple[str, int]:
 	)
 	out_text, c_dis = re.subn(r'(?i)(\bdisabled\s*:\s*bool\s*=\s*)false', r'\g<1>true', out_text)
 
-	out_text, c_seq = re.subn(r'(?i)((?:Chaos|Order)?Sequence\s*:\s*hash\s*=\s*)"[^"]+"', r'\g<1>0x00000000', out_text)
+	out_text, c_seq = re.subn(r'(?i)(\w*Sequence\s*:\s*hash\s*=\s*)"[^"]+"', r'\g<1>0x00000000', out_text)
 	out_text, c_ui = re.subn(r'(?i)(Ui(?:Loadable|ElementGroup)\s*:\s*hash\s*=\s*)"[^"]+"', r'\g<1>0x00000000', out_text)
 
 	changes += (c1 + c2 + c3 + c_bool + c_dis + c_seq + c_ui)
@@ -1505,13 +1514,16 @@ def _expand_ward_skin0_only_hash(char_name: str, base_text: str, target_skin: st
 # ==============================================================================
 # OTHER MODES STRUCTURAL INTEGRITY
 # ==============================================================================
-def OTHER_INTEGRITY(skin_name: str, content: str = "") -> bool:
-	check_str = f"_{skin_name}_ {content}".lower()
-	for kw in ("_ha", "ha_", "_bw", "bw_", "_bilgewater", "bilgewater_", "_aram", "aram_"):
-		if kw in check_str:
-			return True
-	return False
+_OTHER_TAGS = "|".join(sorted(_OTHER_INTEGRITY, key=len, reverse=True))
+_OTHER_INTEGRITY_PATTERN = re.compile(rf'(?i)(?<![a-z0-9])(?:{_OTHER_TAGS})(?![a-z0-9])')
+_OTHER_INTEGRITY_PATHS = re.compile(rf'(?i)[/\\](?:{_OTHER_TAGS})[/\\]')
 
+def is_other_mode_structure(skin_name: str, content: str = "") -> bool:
+	if skin_name and _OTHER_INTEGRITY_PATTERN.search(skin_name):
+		return True
+	if content and _OTHER_INTEGRITY_PATHS.search(content):
+		return True
+	return False
 
 # ==============================================================================
 # MASTER MAP11 CHARACTER RESTORATION (STRUCTURES, RUBBLE, MINIONS, WARDS, BANNERS)
@@ -1571,7 +1583,7 @@ def process_map11_master_characters(
 					m_name = re.search(r'(?i)\bchampionSkinName:\s*string\s*=\s*"([^"]+)"', curr_txt)
 					s_name = m_name.group(1).lower() if m_name else ""
 
-					if OTHER_INTEGRITY(s_name, curr_txt):
+					if is_other_mode_structure(s_name, curr_txt):
 						continue
 
 					if "chaos" in s_name:
@@ -1614,10 +1626,14 @@ def process_map11_master_characters(
 					except OSError:
 						curr_txt = ""
 
-					curr_lower = curr_txt.lower()
-					if OTHER_INTEGRITY(curr_lower, curr_txt):
+					m_name = re.search(r'(?i)\bchampionSkinName:\s*string\s*=\s*"([^"]+)"', curr_txt)
+					s_name = m_name.group(1).lower() if m_name else ""
+
+					if is_other_mode_structure(s_name, curr_txt):
 						continue
-					is_chaos = ("chaos" in curr_lower or "red" in curr_lower or (int(skin_id) % 2 == 1))
+
+					curr_lower = curr_txt.lower()
+					is_chaos = ("chaos" in s_name or "chaos" in curr_lower or "red" in s_name or "red" in curr_lower or (int(skin_id) % 2 == 1))
 					target_base = "1" if is_chaos else "0"
 					rubble_tasks.append((char_name, skins_dir, skin_id, target_base))
 			continue

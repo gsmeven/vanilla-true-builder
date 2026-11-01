@@ -237,7 +237,7 @@ else:
 * **Property Parsing:** Inspects the internal binary property `championSkinName` for explicit team tags (`"chaos"`, `"order"`, `"red"`, `"blue"`). If omitted by Riot, it falls back to modulo arithmetic (`skin_id % 4` and `skin_id % 2`).
 * **Rubble Alignment (`turretrubble`):** Rebinds destroyed turret rubble strictly to Order (`Skin 0`) or Chaos (`Skin 1`) bases, ensuring ground wreckage always reflects the correct team alignment.
 * **Minion Faction:** Routes Melee, Ranged, Siege, and Super minions to canonical Faction 0 (Order) and Faction 1 (Chaos) baselines without corrupting alternate game tables.
-* **Others Protection (`OTHER_INTEGRITY`):** Filters and isolates non-SR assets (`_ha`, `ha_`, `_bw`, `bw_`, `_aram`), guaranteeing that canonical structures as on ARAM (Howling Abyss) and Butcher's Bridge remain intact.
+* **Other Protection (`_OTHER_INTEGRITY`):** Filters and isolates non-SR assets (`ha`, `bw`, `bilgewater`, `aram`), ensuring that canonical structures on other game maps remain intact.
 
 ## 🏗️ Architecture
 
