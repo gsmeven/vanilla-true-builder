@@ -339,8 +339,6 @@ def fast_vanilla_revert(
 	base_text: str,
 	target_skin: str,
 	skin_numeric_id: str | None,
-	entity: str = "",
-	main_entity: str = "",
 ) -> str:
 	text = re.sub(
 		r'(?i)(["\'](?:Characters[/\\])?[^"\'/\\]+[/\\]Skins[/\\])Skin\d+(["\']\s*=\s*SkinCharacterDataProperties)',
@@ -2145,7 +2143,7 @@ class ChampionAuditorApp:
 
 						if template_file:
 							raw_tpl = template_file.read_text(encoding="utf-8", errors="ignore")
-							m_alias = re.search(r'(?i)#\s*SUBMESH_ALIAS\s*:\s*([^\s-]+)\s*->\s*([^\r\n]+)', raw_tpl)
+							m_alias = re.search(r'(?i)#\s*SUBMESH_ALIAS\s*:\s*(\S+)\s*->\s*([^\r\n]+)', raw_tpl)
 
 							if m_alias:
 								m_parent_skin = re.search(r'skin(\d+)', template_file.stem, re.IGNORECASE)
