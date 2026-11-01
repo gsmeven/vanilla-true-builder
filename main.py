@@ -240,7 +240,6 @@ def _rule(stem: str, target_canonical: str) -> tuple[re.Pattern, Callable[[re.Ma
 
 
 _SRS_TO_CANONICAL_TEX_RULES: tuple[tuple[re.Pattern, Callable[[re.Match], str]], ...] = (
-	_rule("Periph_Top_H", "assets/maps/kitpieces/srx/textures/terrain_north_toplane_periph_b_1bitalpha.tex"),
 	_rule("Ground_C3_MidLane", "assets/maps/kitpieces/srx/base/textures/terrain_midlane_ground_a.tex"),
 	_rule("Ground_A1_AlcoveTop", "assets/maps/kitpieces/srs/base/textures/ground_a1_alcovetop_a.tex"),
 	_rule("Ground_E5_AlcoveBot", "assets/maps/kitpieces/srs/base/textures/ground_e5_alcovebot_a.tex"),
