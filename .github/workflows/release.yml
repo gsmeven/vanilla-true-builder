@@ -106,9 +106,9 @@ jobs:
           body: |
             #### ⚡️ Quick Installation:
             1. Download and extract **`VanillaTrueBuilder.zip`** below.
-            2. Run **`VanillaTrueBuilder.exe`**.
-            3. Choose your desired package format (**`.modpkg`** recommended) and click **`BUILD PACKAGE`**.
-            4. Drag the generated **`VanillaTrueMod.modpkg`** (or **`.fantome`**) into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it! *(With `.modpkg`, toggle individual restoration layers directly inside LTK Manager).*
+            2. Run **`VanillaTrueBuilder.exe`**, ensure the format is set to **`.modpkg`** (default), and click **`BUILD PACKAGE`**.
+            3. Drag the generated **`VanillaTrueMod.modpkg`** into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it.
+            4. Toggle individual restoration layers (Champions, Structures, Minions, Finishers, etc.) directly inside LTK Manager anytime with zero rebuilds!
 
             ---
 
