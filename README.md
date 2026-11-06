@@ -2,7 +2,7 @@
 
 # Vanilla True Builder
 
-**The ultimate canonical Vanilla mod builder for [League of Legends](https://www.leagueoflegends.com) & [LTK Manager](https://github.com/LeagueToolkit).**  
+**The ultimate canonical Vanilla mod builder for [League of Legends](https://www.leagueoflegends.com)  
 *Build a pure, zero-bloat Vanilla mod (`.modpkg` / `.fantome`) in seconds.*
 
 [![Release](https://img.shields.io/github/v/release/gsmeven/vanilla-true-builder?style=for-the-badge&logo=github&color=0ac8b9&logoColor=white)](https://github.com/gsmeven/vanilla-true-builder/releases)
