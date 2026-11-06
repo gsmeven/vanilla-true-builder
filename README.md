@@ -329,7 +329,7 @@ The AI receives the exact, pristine baseline data it needs to write the fix, str
 
 The output package is assembled directly as a modern `.modpkg` project (or legacy `.fantome` archive) tailored for [LTK Manager](https://github.com/LeagueToolkit):
 
-### Native `.modpkg` Project Structure (Recommended)
+### Native `.modpkg` Project Structure
 ```
 VanillaTrueMod.modpkg
 ├── _meta_/
@@ -338,14 +338,14 @@ VanillaTrueMod.modpkg
 │   ├── LICENSE         # Official CC BY-NC-SA 4.0 License
 │   └── thumbnail       # Package artwork
 └── content/
-    ├── base/           # Base transparent textures
-    ├── champions/      # Champion skins vanilla normalization
-    ├── structures/     # Canonical structure models and rubble
-    ├── minions/        # Canonical faction minion silhouettes
-    ├── wards/          # Vision wards and trinkets normalization
-    ├── accents/        # Map clutter and trophy neutralization
-    ├── finishers/      # Victory/Defeat cinematic finishers neutralization
-    └── recalls/        # Special recall overlays normalization
+    ├── base/
+    ├── champions/
+    ├── structures/
+    ├── minions/
+    ├── wards/
+    ├── accents/
+    ├── finishers/
+    └── recalls/
 ```
 
 ### Legacy `.fantome` Archive Structure
