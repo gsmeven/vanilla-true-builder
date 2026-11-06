@@ -113,7 +113,6 @@ def perform_silent_auto_update(download_url: str, latest_tag: str, log_callback=
 		LOG.warning("Silent auto-update failed: %s", exc)
 		return False
 
-# Exact 144-byte binary structure of a native DirectX 11 DXT5 (BC3) 4x4 100% Transparent Texture (.tex)
 RAW_TRANSPARENT_TEX_BYTES = (
 	b"DDS \x7c\x00\x00\x00\x07\x10\x08\x00\x04\x00\x00\x00\x04\x00\x00\x00"
 	b"\x10\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00" + (b"\x00" * 44) +
@@ -783,6 +782,7 @@ def recompile_text_to_bin(
 
 	return count
 
+
 # ==============================================================================
 # FILE FILTERING & CANONICAL MASTER DISCOVERY
 # ==============================================================================
@@ -1022,7 +1022,8 @@ def _clean_code_line(line: str) -> str:
 		return re.sub(r'"(?:\\.|[^"\\])*"', '', line)
 	return line
 
-	# ==============================================================================
+
+# ==============================================================================
 # DETERMINISTIC MAP SANITIZATION (PRESERVING NATIVE TEXTURE PATHS)
 # ==============================================================================
 def _extract_diffuse_texture(block_text: str) -> str:
@@ -1337,7 +1338,6 @@ def clean_finisher_elements(
 			LOG.info("Sanitized Master Finisher (%d changes): %s", n_changes, rel_posix)
 
 	return modified_files
-
 
 def _sanitize_banner_trophy(text: str) -> tuple[str, int]:
 	changes = 0
@@ -2475,7 +2475,8 @@ def _resolve_entity_to_champion_wad(entity: str, champion_wads: list[Path]) -> P
 			return wad
 	return None
 
-	# ==============================================================================
+
+# ==============================================================================
 # LEAGUETOOLKIT (LTK) NATIVE MOD PROJECT BUILDERS (8 LAYERS)
 # ==============================================================================
 def init_mod_project_structure(
@@ -2606,426 +2607,103 @@ def build_layer_base(project_dir: Path) -> None:
 		tex_dest.parent.mkdir(parents=True, exist_ok=True)
 		tex_dest.write_bytes(RAW_TRANSPARENT_TEX_BYTES)
 
-# ==============================================================================
-# WAD TABLE OF CONTENTS (TOC) READER
-# ==============================================================================
-def _xxh64(data: bytes, seed: int = 0) -> int:
-	MASK64 = 0xFFFFFFFFFFFFFFFF
-	PRIME1, PRIME2, PRIME3, PRIME4, PRIME5 = (
-		0x9E3779B185EBCA87, 0xC2B2AE3D27D4EB4F, 0x165667B19E3779F9, 0x85EBCA77C2B2AE63, 0x27D4EB2F165667C5
-	)
-	def _rotl(x, r): return ((x << r) | (x >> (64 - r))) & MASK64
-
-	length = len(data)
-	if length >= 32:
-		v1 = (seed + PRIME1 + PRIME2) & MASK64
-		v2 = (seed + PRIME2) & MASK64
-		v3 = seed & MASK64
-		v4 = (seed - PRIME1) & MASK64
-		offset = 0
-		while offset <= length - 32:
-			k1, k2, k3, k4 = struct.unpack_from("<QQQQ", data, offset)
-			v1 = _rotl((v1 + k1 * PRIME2) & MASK64, 31) * PRIME1 & MASK64
-			v2 = _rotl((v2 + k2 * PRIME2) & MASK64, 31) * PRIME1 & MASK64
-			v3 = _rotl((v3 + k3 * PRIME2) & MASK64, 31) * PRIME1 & MASK64
-			v4 = _rotl((v4 + k4 * PRIME2) & MASK64, 31) * PRIME1 & MASK64
-			offset += 32
-		h64 = (_rotl(v1, 1) + _rotl(v2, 7) + _rotl(v3, 12) + _rotl(v4, 18)) & MASK64
-		for v in (v1, v2, v3, v4):
-			v = _rotl(v * PRIME2 & MASK64, 31) * PRIME1 & MASK64
-			h64 = (h64 ^ v) * PRIME1 + PRIME4 & MASK64
-	else:
-		h64 = (seed + PRIME5) & MASK64
-		offset = 0
-
-	h64 = (h64 + length) & MASK64
-	while offset <= length - 8:
-		k1 = struct.unpack_from("<Q", data, offset)[0]
-		h64 = (_rotl(h64 ^ (_rotl(k1 * PRIME2 & MASK64, 31) * PRIME1 & MASK64), 27) * PRIME1 + PRIME4) & MASK64
-		offset += 8
-	if offset <= length - 4:
-		k1 = struct.unpack_from("<I", data, offset)[0]
-		h64 = (_rotl(h64 ^ (k1 * PRIME1 & MASK64), 23) * PRIME2 + PRIME3) & MASK64
-		offset += 4
-	while offset < length:
-		h64 = (_rotl(h64 ^ (data[offset] * PRIME5 & MASK64), 11) * PRIME1) & MASK64
-		offset += 1
-
-	h64 = (h64 ^ (h64 >> 33)) * PRIME2 & MASK64
-	h64 = (h64 ^ (h64 >> 29)) * PRIME3 & MASK64
-	return (h64 ^ (h64 >> 32)) & MASK64
-
-
-def scan_wad_existing_skins(wad_path: Path, champ_name: str, max_check: int = 80) -> list[int]:
-	champ_lower = champ_name.lower()
-	try:
-		with open(wad_path, "rb") as f:
-			header = f.read(4)
-			if len(header) < 4:
-				return []
-			magic, major = struct.unpack_from("<2sB", header, 0)
-			if magic != b"RW" or major != 3:
-				return []
-
-			# Pula assinatura ECDSA (256 bytes) + Checksum (8 bytes) = 268 bytes
-			f.seek(268)
-			entry_count = struct.unpack("<I", f.read(4))[0]
-			toc_raw = f.read(entry_count * 32)
-			wad_hashes = {
-				struct.unpack_from("<Q", toc_raw, i * 32)[0]
-				for i in range(len(toc_raw) // 32)
-			}
-
-		found_skins = []
-		for s_id in range(1, max_check + 1):
-			path_str = f"data/characters/{champ_lower}/skins/skin{s_id}.bin"
-			if _xxh64(path_str.encode("utf-8")) in wad_hashes:
-				found_skins.append(s_id)
-		return found_skins
-	except Exception:
-		return []
 
 def build_layer_champions(
 	champion_wads: list[Path],
 	project_dir: Path,
-	tools: dict,
-	workspace_root: Path,
+	cache_dir: Path,
 	dry_run: bool = False,
-	progress_callback: Callable[[float, str, str], None] | None = None,
 ) -> None:
-	content_champ = project_dir / "content" / "champions"
-	cache_dir = tools.get("cache_dir", workspace_root / "cache")
-	script_hash = _script_fingerprint()
-
-	yaml_declarations: list[str] = [
-		"version: 1",
-		"modules:",
-		"  - entries:",
-	]
-
-	total = len(champion_wads)
-	if not total:
+	if dry_run:
 		return
-
-	overrides_dir = workspace_root / "overrides"
-	active_overrides_by_wad: dict[str, list[tuple[str, int, Path]]] = {}
-	chroma_inheritance_by_wad: dict[str, dict[int, Path]] = {}
-
-	if overrides_dir.is_dir():
-		for tpl_file in overrides_dir.rglob("skin*.bin.txt"):
-			if tpl_file.stat().st_size == 0:
-				continue
-			ent_name = tpl_file.parent.parent.name.lower()
-			if ent_name in ("characters", "data"):
-				ent_name = tpl_file.parent.parent.parent.name.lower()
-			if ent_name == "global":
-				continue
-
-			m_sid = re.search(r"skin(\d+)", tpl_file.name, re.IGNORECASE)
-			if not m_sid:
-				continue
-			sid = int(m_sid.group(1))
-
-			target_wad = _resolve_entity_to_champion_wad(ent_name, champion_wads)
-			if target_wad:
-				wad_key = target_wad.name.lower()
-				active_overrides_by_wad.setdefault(wad_key, []).append((ent_name, sid, tpl_file))
-
-				try:
-					hdr = tpl_file.read_text(encoding="utf-8", errors="ignore")[:400]
-					m_var = re.search(r'(?i)#\s*VARIANTS\s*:\s*([^\r\n]+)', hdr)
-					if m_var:
-						chroma_map = chroma_inheritance_by_wad.setdefault(wad_key, {})
-						for token in m_var.group(1).split(","):
-							t = token.strip()
-							if "-" in t:
-								start, end = map(int, t.split("-"))
-								for cid in range(start, end + 1):
-									chroma_map[cid] = tpl_file
-							elif t.isdigit():
-								chroma_map[int(t)] = tpl_file
-				except OSError:
-					pass
-
-	for index, wad_path in enumerate(champion_wads, start=1):
-		wad_key = wad_path.name.lower()
-		champ_name = wad_path.name.split(".")[0].lower()
-		champ_cap = champ_name.capitalize()
-		counter_str = f"({index}/{total})"
-
-		real_skins = scan_wad_existing_skins(wad_path, champ_name)
-
-		wad_overrides = active_overrides_by_wad.get(wad_key, [])
-		wad_chromas = chroma_inheritance_by_wad.get(wad_key, {})
-		has_overrides = bool(wad_overrides or wad_chromas)
-
-		if not has_overrides:
-			for skin_id in real_skins:
-				yaml_declarations.extend([
-					f"      Characters/{champ_cap}/Skins/Skin{skin_id}:",
-					f"        skinMeshProperties: !ref Characters/{champ_cap}/Skins/Skin0:skinMeshProperties",
-					f"        skinAnimationProperties: !ref Characters/{champ_cap}/Skins/Skin0:skinAnimationProperties",
-					f"        mContextualActionData: !ref Characters/{champ_cap}/Skins/Skin0:mContextualActionData",
-					f"        skinAudioProperties: !ref Characters/{champ_cap}/Skins/Skin0:skinAudioProperties",
-					f"        iconCircle: !ref Characters/{champ_cap}/Skins/Skin0:iconCircle",
-					f"        healthBarData: !ref Characters/{champ_cap}/Skins/Skin0:healthBarData",
-					f"        mResourceResolver: !ref Characters/{champ_cap}/Skins/Skin0:mResourceResolver",
-				])
-			if progress_callback:
-				progress_callback(index / total, counter_str, f"{wad_path.name} › Declarations")
-			continue
-
-		wad_hash = file_fingerprint(wad_path)
+	content_champ = project_dir / "content" / "champions"
+	for wad_path in champion_wads:
 		wad_cache_dir = get_canonical_cache_dir(cache_dir, wad_path)
-		processed_skins = {sid for _, sid, _ in wad_overrides} | set(wad_chromas.keys())
-
-		def append_declarative_non_overridden():
-			for s_num in real_skins:
-				if s_num not in processed_skins:
-					yaml_declarations.extend([
-						f"      Characters/{champ_cap}/Skins/Skin{s_num}:",
-						f"        skinMeshProperties: !ref Characters/{champ_cap}/Skins/Skin0:skinMeshProperties",
-						f"        skinAnimationProperties: !ref Characters/{champ_cap}/Skins/Skin0:skinAnimationProperties",
-						f"        mContextualActionData: !ref Characters/{champ_cap}/Skins/Skin0:mContextualActionData",
-						f"        skinAudioProperties: !ref Characters/{champ_cap}/Skins/Skin0:skinAudioProperties",
-						f"        iconCircle: !ref Characters/{champ_cap}/Skins/Skin0:iconCircle",
-						f"        healthBarData: !ref Characters/{champ_cap}/Skins/Skin0:healthBarData",
-						f"        mResourceResolver: !ref Characters/{champ_cap}/Skins/Skin0:mResourceResolver",
-					])
-
-		if _is_cache_valid(wad_cache_dir, wad_hash, script_hash) and not dry_run:
-			dest_champ_wad_dir = content_champ / wad_path.name
-			for cached_file in wad_cache_dir.rglob("*"):
-				if cached_file.is_file() and cached_file.name != ".hash" and not cached_file.name.endswith(".txt"):
-					rel = cached_file.relative_to(wad_cache_dir)
-					dest_f = dest_champ_wad_dir / rel
-					dest_f.parent.mkdir(parents=True, exist_ok=True)
-					shutil.copy2(cached_file, dest_f)
-
-			append_declarative_non_overridden()
-			if progress_callback:
-				progress_callback(index / total, counter_str, f"{wad_path.name} › Cache")
+		if not wad_cache_dir.is_dir():
 			continue
-
-		with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix=f"vtb_triage_{champ_name}_") as tmp_str:
-			tmp_dir = Path(tmp_str)
-
-			if progress_callback:
-				progress_callback(index / total, counter_str, f"{wad_path.name} › Extracting base")
-
-			extract_wad(
-				wad_path,
-				tmp_dir,
-				tools=tools,
-				filter_type=None,
-				filter_pattern=r"(?i)(skins/skin\d+\.bin$|skins/base/.*\.skn$)",
-				dry_run=dry_run,
-				progress_callback=lambda st: progress_callback(index / total, counter_str, f"{wad_path.name} › {Path(st).name}") if progress_callback else None,
-			)
-
-			discovered_bins: list[Path] = list(tmp_dir.rglob("*.bin"))
-			base_bins: dict[str, Path] = {}
-			for b in discovered_bins:
-				if b.stem.lower() == "skin0":
-					ent = b.parent.parent.name.lower()
-					base_bins[ent] = b
-
-			base_texts: dict[str, str] = {}
-			for ent, b_file in base_bins.items():
-				b_txt = b_file.with_suffix(".bin.txt")
-				run_cmd(build_ritobin_cmd(tools["ritobin"], "decompile", b_file, b_txt, tools.get("hashes_dir")), dry_run=dry_run)
-				if b_txt.is_file():
-					base_texts[ent] = b_txt.read_text(encoding="utf-8", errors="ignore")
-
-			base_skn_list = list(tmp_dir.rglob("*.skn"))
-			real_base_skn = base_skn_list[0] if base_skn_list else None
-
-			if not dry_run:
-				wad_cache_dir.mkdir(parents=True, exist_ok=True)
-			cached_files_count = 0
-
-			for ent_name, skin_id, tpl_file in wad_overrides:
-				if progress_callback:
-					progress_callback(index / total, counter_str, f"{wad_path.name} › Curated Skin{skin_id}")
-
-				raw_template = tpl_file.read_text(encoding="utf-8", errors="ignore")
-
-				m_alias = re.search(r'(?i)#\s*SUBMESH_ALIAS\s*:\s*(\S+)\s*->\s*([^\r\n]+)', raw_template)
-				if m_alias and real_base_skn and not dry_run:
-					old_sub = m_alias.group(1).strip()
-					new_sub = m_alias.group(2).strip()
-					patched_bytes = patch_skn_submesh_inplace(real_base_skn.read_bytes(), old_sub, new_sub)
-					patched_name = f"{ent_name.capitalize()}_Skin{skin_id}.skn"
-					rel_skn_path = Path("assets") / "characters" / ent_name / "skins" / "base" / patched_name
-
-					dest_skn = content_champ / wad_path.name / rel_skn_path
-					dest_skn.parent.mkdir(parents=True, exist_ok=True)
-					dest_skn.write_bytes(patched_bytes)
-
-					cache_skn = wad_cache_dir / rel_skn_path
-					cache_skn.parent.mkdir(parents=True, exist_ok=True)
-					cache_skn.write_bytes(patched_bytes)
-					cached_files_count += 1
-
-					if progress_callback:
-						progress_callback(index / total, counter_str, f"{wad_path.name} › SKN Alias {old_sub}")
-
-				clean_lines = [
-					l for l in raw_template.splitlines()
-					if not (l.strip().startswith("#") and not l.strip().startswith("#PROP"))
-				]
-				live_base = base_texts.get(ent_name, base_texts.get(champ_name, ""))
-				synced_content = sync_template_linked_block("\n".join(clean_lines), live_base)
-
-				tmp_txt = tmp_dir / f"{ent_name}_skin{skin_id}_synced.bin.txt"
-				tmp_txt.write_text(synced_content, encoding="utf-8")
-				tmp_out_bin = tmp_dir / f"{ent_name}_skin{skin_id}.bin"
-
-				run_cmd(build_ritobin_cmd(tools["ritobin"], "recompile", tmp_txt, tmp_out_bin, tools.get("hashes_dir")), dry_run=dry_run)
-				if not dry_run and tmp_out_bin.is_file():
-					rel_bin_path = Path("data") / "characters" / ent_name / "skins" / f"skin{skin_id}.bin"
-
-					dest_bin = content_champ / wad_path.name / rel_bin_path
-					dest_bin.parent.mkdir(parents=True, exist_ok=True)
-					shutil.copy2(tmp_out_bin, dest_bin)
-
-					cache_bin = wad_cache_dir / rel_bin_path
-					cache_bin.parent.mkdir(parents=True, exist_ok=True)
-					shutil.copy2(tmp_out_bin, cache_bin)
-					cached_files_count += 1
-
-			for cid, parent_tpl in wad_chromas.items():
-				if progress_callback:
-					progress_callback(index / total, counter_str, f"{wad_path.name} › Chroma {cid}")
-
-				parent_raw = parent_tpl.read_text(encoding="utf-8", errors="ignore")
-				ent_name = parent_tpl.parent.parent.name.lower()
-				clean_parent = "\n".join([
-					l for l in parent_raw.splitlines()
-					if not (l.strip().startswith("#") and not l.strip().startswith("#PROP"))
-				])
-				live_base = base_texts.get(ent_name, base_texts.get(champ_name, ""))
-				synced_parent = sync_template_linked_block(clean_parent, live_base)
-				reverted_text = fast_vanilla_revert(synced_parent, f"Skin{cid}", str(cid))
-
-				tmp_txt = tmp_dir / f"{ent_name}_skin{cid}_variant.bin.txt"
-				tmp_txt.write_text(reverted_text, encoding="utf-8")
-				tmp_out_bin = tmp_dir / f"{ent_name}_skin{cid}.bin"
-
-				run_cmd(build_ritobin_cmd(tools["ritobin"], "recompile", tmp_txt, tmp_out_bin, tools.get("hashes_dir")), dry_run=dry_run)
-				if not dry_run and tmp_out_bin.is_file():
-					rel_bin_path = Path("data") / "characters" / ent_name / "skins" / f"skin{cid}.bin"
-
-					dest_bin = content_champ / wad_path.name / rel_bin_path
-					dest_bin.parent.mkdir(parents=True, exist_ok=True)
-					shutil.copy2(tmp_out_bin, dest_bin)
-
-					cache_bin = wad_cache_dir / rel_bin_path
-					cache_bin.parent.mkdir(parents=True, exist_ok=True)
-					shutil.copy2(tmp_out_bin, cache_bin)
-					cached_files_count += 1
-
-			append_declarative_non_overridden()
-
-			if not dry_run and cached_files_count > 0:
-				_write_cache_hash(wad_cache_dir, wad_hash, script_hash)
-
-		if progress_callback:
-			progress_callback(index / total, counter_str, f"{wad_path.name} › OK")
-
-	if len(yaml_declarations) > 3 and not dry_run:
-		yaml_path = content_champ / "game_data.yaml"
-		yaml_path.write_text("\n".join(yaml_declarations) + "\n", encoding="utf-8")
+		dest_wad_dir = content_champ / wad_path.name
+		for cached_file in wad_cache_dir.rglob("*"):
+			if cached_file.is_file() and cached_file.name != ".hash" and not cached_file.name.endswith(".txt"):
+				rel = cached_file.relative_to(wad_cache_dir)
+				dest_f = dest_wad_dir / rel
+				dest_f.parent.mkdir(parents=True, exist_ok=True)
+				shutil.copy2(cached_file, dest_f)
 
 
-def build_layer_structures(project_dir: Path) -> None:
-	content_struct = project_dir / "content" / "structures"
-	yaml_lines = [
-		"version: 1",
-		"modules:",
-		"  - entries:",
-	]
-	for s_id in range(4, 32):
-		base_target = s_id % 4
-		yaml_lines.extend([
-			f"      Characters/Turret/Skins/Skin{s_id}:",
-			f"        skinMeshProperties: !ref Characters/Turret/Skins/Skin{base_target}:skinMeshProperties",
-			f"        skinAnimationProperties: !ref Characters/Turret/Skins/Skin{base_target}:skinAnimationProperties",
-			f"        mResourceResolver: !ref Characters/Turret/Skins/Skin{base_target}:mResourceResolver",
-		])
-	for s_id in range(2, 16):
-		base_target = 1 if (s_id % 2 == 1) else 0
-		yaml_lines.extend([
-			f"      Characters/TurretRubble/Skins/Skin{s_id}:",
-			f"        skinMeshProperties: !ref Characters/TurretRubble/Skins/Skin{base_target}:skinMeshProperties",
-			f"        skinAnimationProperties: !ref Characters/TurretRubble/Skins/Skin{base_target}:skinAnimationProperties",
-		])
-	(content_struct / "game_data.yaml").write_text("\n".join(yaml_lines) + "\n", encoding="utf-8")
+def build_layer_structures(
+	project_dir: Path,
+	map11_cache_dir: Path,
+	dry_run: bool = False,
+) -> None:
+	if dry_run or not map11_cache_dir.is_dir():
+		return
+	content_struct = project_dir / "content" / "structures" / "Map11.wad.client"
+	for char_name in STRUCTURE_CHARACTERS:
+		for char_root in (map11_cache_dir / "data" / "characters", map11_cache_dir / "characters"):
+			skins_dir = char_root / char_name / "skins"
+			if skins_dir.is_dir():
+				for bin_file in skins_dir.glob("skin*.bin"):
+					if bin_file.is_file():
+						m = re.fullmatch(r"skin(\d+)\.bin", bin_file.name, re.IGNORECASE)
+						if not m:
+							continue
+						skin_id = m.group(1)
+						if char_name in {"turret", "inhibitor", "nexus"} and skin_id in {"0", "1", "2", "3"}:
+							continue
+						if char_name == "turretrubble" and skin_id in {"0", "1"}:
+							continue
+						if skin_id == "0":
+							continue
+						rel = bin_file.relative_to(map11_cache_dir)
+						dest = content_struct / rel
+						dest.parent.mkdir(parents=True, exist_ok=True)
+						shutil.copy2(bin_file, dest)
 
 
-def build_layer_minions(project_dir: Path) -> None:
-	content_minions = project_dir / "content" / "minions"
-	minion_types = ["melee", "ranged", "siege", "super"]
-	yaml_lines = [
-		"version: 1",
-		"modules:",
-		"  - entries:",
-	]
-	for m_type in minion_types:
-		for s_id in range(2, 12):
-			yaml_lines.extend([
-				f"      Characters/sru_orderminion{m_type}/Skins/Skin{s_id}:",
-				f"        skinMeshProperties: !ref Characters/sru_orderminion{m_type}/Skins/Skin0:skinMeshProperties",
-				f"        skinAnimationProperties: !ref Characters/sru_orderminion{m_type}/Skins/Skin0:skinAnimationProperties",
-				f"      Characters/sru_chaosminion{m_type}/Skins/Skin{s_id}:",
-				f"        skinMeshProperties: !ref Characters/sru_chaosminion{m_type}/Skins/Skin1:skinMeshProperties",
-				f"        skinAnimationProperties: !ref Characters/sru_chaosminion{m_type}/Skins/Skin1:skinAnimationProperties",
-			])
-	(content_minions / "game_data.yaml").write_text("\n".join(yaml_lines) + "\n", encoding="utf-8")
+def build_layer_minions(
+	project_dir: Path,
+	map11_cache_dir: Path,
+	dry_run: bool = False,
+) -> None:
+	if dry_run or not map11_cache_dir.is_dir():
+		return
+	content_minions = project_dir / "content" / "minions" / "Map11.wad.client"
+	for char_name in MINION_CHARACTERS:
+		for char_root in (map11_cache_dir / "data" / "characters", map11_cache_dir / "characters"):
+			skins_dir = char_root / char_name / "skins"
+			if skins_dir.is_dir():
+				for bin_file in skins_dir.glob("skin*.bin"):
+					if bin_file.is_file():
+						m = re.fullmatch(r"skin(\d+)\.bin", bin_file.name, re.IGNORECASE)
+						if not m:
+							continue
+						skin_id = m.group(1)
+						if skin_id in {"0", "1"}:
+							continue
+						rel = bin_file.relative_to(map11_cache_dir)
+						dest = content_minions / rel
+						dest.parent.mkdir(parents=True, exist_ok=True)
+						shutil.copy2(bin_file, dest)
 
 
 def build_layer_wards(
 	project_dir: Path,
-	tools: dict,
+	map11_cache_dir: Path,
 	dry_run: bool = False,
 ) -> None:
-	content_wards = project_dir / "content" / "wards"
-	yaml_lines = [
-		"version: 1",
-		"modules:",
-		"  - entries:",
-	]
-	for s_id in range(1, 100):
-		yaml_lines.extend([
-			f"      Characters/SightWard/Skins/Skin{s_id}:",
-			f"        skinMeshProperties: !ref Characters/SightWard/Skins/Skin0:skinMeshProperties",
-			f"        skinAnimationProperties: !ref Characters/SightWard/Skins/Skin0:skinAnimationProperties",
-			f"        mResourceResolver: !ref Characters/SightWard/Skins/Skin0:mResourceResolver",
-		])
-	if not dry_run:
-		(content_wards / "game_data.yaml").write_text("\n".join(yaml_lines) + "\n", encoding="utf-8")
-
-	trinket_sample = (
-		'#PROP_text\n'
-		'type: string = "PROP"\n'
-		'version: u32 = 3\n'
-		'linked: list[string] = {}\n'
-		'entries: map[hash,embed] = {\n'
-		'    "Characters/YellowTrinket/Skins/Skin1" = SkinCharacterDataProperties {\n'
-		'        championSkinName: string = "YellowTrinketBase"\n'
-		'    }\n'
-		'}\n'
-	)
-	with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix="vtb_trinket_") as tmp_str:
-		tmp_txt = Path(tmp_str) / "skin1.bin.txt"
-		tmp_bin = Path(tmp_str) / "skin1.bin"
-		tmp_txt.write_text(trinket_sample, encoding="utf-8")
-		run_cmd(build_ritobin_cmd(tools["ritobin"], "recompile", tmp_txt, tmp_bin, tools.get("hashes_dir")), dry_run=dry_run)
-		if not dry_run and tmp_bin.is_file():
-			for trinket_name in ("yellowtrinket", "bluetrinket", "jammerdevice"):
-				dest = content_wards / "Map11.wad.client" / "data" / "characters" / trinket_name / "skins" / "skin1.bin"
-				dest.parent.mkdir(parents=True, exist_ok=True)
-				shutil.copy2(tmp_bin, dest)
+	if dry_run or not map11_cache_dir.is_dir():
+		return
+	content_wards = project_dir / "content" / "wards" / "Map11.wad.client"
+	for ward_name in WARD_CHARACTERS:
+		for char_root in (map11_cache_dir / "data" / "characters", map11_cache_dir / "characters"):
+			skins_dir = char_root / ward_name / "skins"
+			if skins_dir.is_dir():
+				for bin_file in skins_dir.glob("skin*.bin"):
+					if bin_file.is_file() and bin_file.stem.lower() != "skin0":
+						rel = bin_file.relative_to(map11_cache_dir)
+						dest = content_wards / rel
+						dest.parent.mkdir(parents=True, exist_ok=True)
+						shutil.copy2(bin_file, dest)
 
 
 def build_layer_accents(
@@ -3150,20 +2828,20 @@ def build_layer_global_banners(
 							shutil.copy2(out_bin, dest_banner)
 
 
-def build_layer_finishers(project_dir: Path) -> None:
-	content_fin = project_dir / "content" / "finishers"
-	yaml_lines = [
-		"version: 1",
-		"modules:",
-		"  - entries:",
-		"      UICrepeChaos:",
-		"        disabled: true",
-		"        m_Enabled: false",
-		"      UICrepeOrder:",
-		"        disabled: true",
-		"        m_Enabled: false",
-	]
-	(content_fin / "game_data.yaml").write_text("\n".join(yaml_lines) + "\n", encoding="utf-8")
+def build_layer_finishers(
+	project_dir: Path,
+	ui_cache_dir: Path,
+	dry_run: bool = False,
+) -> None:
+	if dry_run or not ui_cache_dir.is_dir():
+		return
+	content_fin = project_dir / "content" / "finishers" / ui_cache_dir.name
+	for bin_file in ui_cache_dir.rglob("*.bin"):
+		if bin_file.is_file() and bin_file.name != ".hash":
+			rel = bin_file.relative_to(ui_cache_dir)
+			dest = content_fin / rel
+			dest.parent.mkdir(parents=True, exist_ok=True)
+			shutil.copy2(bin_file, dest)
 
 
 def build_layer_recalls(
@@ -3510,11 +3188,11 @@ def build_vanilla_pipeline(
 					LOG.info("Reusing Map11 from canonical master cache: %s", map_wad.name)
 					emit_progress(scheduler.pct("map11", 0.5), "Map11: Cache", "", "Valid Map11 master cache reused...")
 					if opt_structures:
-						build_layer_structures(project_dir)
+						build_layer_structures(project_dir, map11_cache_dir, dry_run=dry_run)
 					if opt_minions:
-						build_layer_minions(project_dir)
+						build_layer_minions(project_dir, map11_cache_dir, dry_run=dry_run)
 					if opt_wards:
-						build_layer_wards(project_dir, tools=cfg, dry_run=dry_run)
+						build_layer_wards(project_dir, map11_cache_dir, dry_run=dry_run)
 					if opt_accents:
 						mat_cached = map11_cache_dir / "data" / "maps" / "shipping" / "map11" / "base_srx.materials.bin"
 						if not mat_cached.is_file():
@@ -3616,11 +3294,11 @@ def build_vanilla_pipeline(
 									_write_cache_hash(map11_cache_dir, map11_hash, script_hash)
 
 					if opt_structures and not dry_run:
-						build_layer_structures(project_dir)
+						build_layer_structures(project_dir, map11_cache_dir, dry_run=dry_run)
 					if opt_minions and not dry_run:
-						build_layer_minions(project_dir)
-					if opt_wards:
-						build_layer_wards(project_dir, tools=cfg, dry_run=dry_run)
+						build_layer_minions(project_dir, map11_cache_dir, dry_run=dry_run)
+					if opt_wards and not dry_run:
+						build_layer_wards(project_dir, map11_cache_dir, dry_run=dry_run)
 
 				emit_progress(scheduler.pct("map11", 1.0), "MAP11 DONE", "", "Map11 processed successfully!")
 
@@ -3632,12 +3310,10 @@ def build_vanilla_pipeline(
 				ui_hash = file_fingerprint(ui_wad)
 				ui_cache_dir = get_canonical_cache_dir(cache_dir, ui_wad)
 
-				if not dry_run:
-					build_layer_finishers(project_dir)
-
 				if _is_cache_valid(ui_cache_dir, ui_hash, script_hash) and not dry_run:
 					LOG.info("Reusing UI elements from master cache: %s", ui_wad.name)
 					emit_progress(scheduler.pct("ui", 0.25), f"{wad_label}: Cache", "", f"Valid {ui_wad.name} master cache reused...")
+					build_layer_finishers(project_dir, ui_cache_dir, dry_run=dry_run)
 				else:
 					with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix="vanilla_finisher_ui_") as temp_fin_str:
 						temp_fin = Path(temp_fin_str)
@@ -3844,40 +3520,28 @@ def build_vanilla_pipeline(
 
 			# 4. CHAMPIONS
 			if opt_champions and champion_wads:
-				emit_progress(scheduler.pct("champions", 0.0), "PROCESSING CHAMPIONS", "", f"Starting triage and declarations for {len(champion_wads)} champions...")
-
-				overrides_dir = workspace_root / "overrides"
-				active_wad_names = set()
-				if overrides_dir.is_dir():
-					for tpl in overrides_dir.rglob("skin*.bin.txt"):
-						if tpl.stat().st_size > 0:
-							target_wad = _resolve_entity_to_champion_wad(tpl.parent.parent.name.lower(), champion_wads)
-							if target_wad:
-								active_wad_names.add(target_wad.name.lower())
-
-				has_uncached_overrides = any(
-					not _is_cache_valid(get_canonical_cache_dir(cache_dir, w), file_fingerprint(w), script_hash)
+				emit_progress(scheduler.pct("champions", 0.0), "PROCESSING CHAMPIONS", "", f"Starting reversion of {len(champion_wads)} champions...")
+				is_all_cached = not any(
+					not _is_cache_valid(get_canonical_cache_dir(cfg["cache_dir"], w), file_fingerprint(w), _script_fingerprint())
 					for w in champion_wads
-					if w.name.lower() in active_wad_names
 				)
-
-				is_cache_hit = not has_uncached_overrides and not dry_run
-				if is_cache_hit:
+				if is_all_cached and not dry_run:
 					emit_progress(scheduler.pct("champions", 0.5), "Champions: Cache", "", "Valid champions master cache reused...")
-
-				build_layer_champions(
+				
+				process_champion_wads(
 					champion_wads,
-					project_dir,
-					tools=cfg,
-					workspace_root=workspace_root,
+					cfg,
+					cfg["cache_dir"],
 					dry_run=dry_run,
-					progress_callback=lambda ratio, counter, current: emit_progress(
+					progress_callback=lambda ratio, counter, current="": emit_progress(
 						scheduler.pct("champions", ratio),
-						"Champions: Cache" if is_cache_hit else "Champions",
+						"Champions: Cache" if is_all_cached else "Champions",
 						counter,
 						current,
 					),
 				)
+
+				build_layer_champions(champion_wads, project_dir, cfg["cache_dir"], dry_run=dry_run)
 				emit_progress(scheduler.pct("champions", 1.0), "CHAMPIONS DONE", "", "All champions processed successfully!")
 				
 			# 5. PACKAGE
@@ -4114,7 +3778,7 @@ def build_vanilla_pipeline(
 						cleaned_recalls: list[Path] = []
 						if is_global:
 							cleaned_recalls = clean_recall_elements(
-								temp_fin,
+								temp_glob,
 								workspace_root=workspace_root,
 								dry_run=dry_run,
 								progress_callback=lambda idx, tot, name: emit_progress(

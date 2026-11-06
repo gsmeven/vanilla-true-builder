@@ -2,8 +2,8 @@
 
 # Vanilla True Builder
 
-**The ultimate canonical Vanilla mod builder for [League of Legends](https://www.leagueoflegends.com) & [LTK Manager](https://github.com/LeagueToolkit).**  
-*Build a pure, zero-bloat Vanilla mod (`.modpkg` / `.fantome`) in seconds.*
+**The ultimate canonical Vanilla mod builder for [League of Legends](https://www.leagueoflegends.com).**  
+*Build a pure, zero-bloat Vanilla mod in seconds.*
 
 [![Release](https://img.shields.io/github/v/release/gsmeven/vanilla-true-builder?style=for-the-badge&logo=github&color=0ac8b9&logoColor=white)](https://github.com/gsmeven/vanilla-true-builder/releases)
 [![CI/CD Tools](https://img.shields.io/badge/CI%2FCD-vtb--ltk--tools-c8aa6e?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/gsmeven/vtb-ltk-tools)
@@ -190,8 +190,8 @@ RAW_TRANSPARENT_TEX_BYTES = (
 > [!NOTE]
 > This asset is used only for auto-instantiated Clash banners/trophies and esports stage banners in `Global.wad.client`. Because the client automatically renders these assets if equipped by any player in the match, suppressing them safely requires a valid texture path. All other clutter is handled natively without external assets via shader alpha discard and particle severing (Item 2).
 
-### 5. Binary Table of Contents (TOC) Inspection & Cache Validator
-Instead of extracting monolithic WAD archives to disk to inspect existing skins, VTB reads the native WAD3 binary header and Table of Contents (TOC) directly in memory (~0.5ms per champion) using a pure-Python XXHash64 implementation. It discovers exact installed skins dynamically without disk decompression or arbitrary index ranges.
+### 5. Cache Validator (`_is_cache_valid`)
+VTB avoids redundant re-compilation across League patches via a dual-signature validation layer:
 
 $$\text{Cache Validity} = (\text{WAD\_HASH} = \text{Current WAD}) \land (\text{SCRIPT\_HASH} = \text{Engine Fingerprint})$$
 
@@ -203,7 +203,7 @@ $$\text{Cache Validity} = (\text{WAD\_HASH} = \text{Current WAD}) \land (\text{S
 VTB interfaces directly with LeagueToolkit's bleeding-edge Rust ecosystem (`crates/ltk_wad`, `crates/ltk_ritobin`, and `league-mod`), eliminating legacy compatibility wrappers and runtime architecture probing overhead:
 * **Selective WAD Extraction (`wadtools`):** Operates directly on Riot's Zstandard-compressed `.wad.client` archives. Leverages targeted regex filters (`-x`) to extract exclusively required skin `.bin` properties and `.skn` geometry files in seconds, bypassing gigabytes of unused audio and animation streams.
 * **Property Tree Compilation (`ritobin-tools`):** Utilizes native verb-based CLI commands (`convert <in> -o <out> -t rito/bin -H <hashes>`), guaranteeing loss-free serialization and full compatibility with Riot's modern 64-bit hash types (`hash[u64]`, `xxh3`) and dynamic property trees.
-* **Declarative Packaging (`league-mod`):** Packages multi-layered LTK mod projects (`.modpkg`) directly into distribution-ready packages carrying runtime Game Data Declarations.
+* **Multi-Layer Packaging (`league-mod`):** Packages modular LTK mod projects (`.modpkg`) with isolated runtime layers directly into distribution-ready packages.
 
 ### 7. Multi-Core Processing (`MAX_PARALLEL_WAD_JOBS`)
 Processing over 160 champions and monolithic map archives sequentially would take hours. VTB leverages a multi-process architecture:
@@ -336,13 +336,13 @@ VanillaTrueMod.modpkg
 │   └── thumbnail       # Package artwork
 └── content/
     ├── base/           # Core framework (priority 0) & transparent safety textures
-    ├── champions/      # Declarative game_data.yaml (!ref) + in-place .skn aliases
-    ├── structures/     # Declarative game_data.yaml (Order/Chaos faction turrets & rubble)
-    ├── minions/        # Declarative game_data.yaml (Order/Chaos minion silhouettes)
-    ├── wards/          # Declarative game_data.yaml (Default vision & trinkets)
-    ├── accents/        # Map11 & Global clutter, ads & trophy neutralization
-    ├── finishers/      # Declarative game_data.yaml (Nexus cinematic neutralization)
-    └── recalls/        # Canonical teleport-home recall VFX
+    ├── champions/      # Recompiled Base Skin0 .bin properties + in-place .skn aliases
+    ├── structures/     # Canonical Order/Chaos faction turrets, rubble, inhibs & nexus (.bin)
+    ├── minions/        # Canonical Order/Chaos faction minion silhouettes (.bin)
+    ├── wards/          # Expanded default vision wards & trinket definitions (.bin)
+    ├── accents/        # Map11 & Global clutter, ads & trophy neutralization (.bin)
+    ├── finishers/      # Neutralized victory/defeat cinematic & audio banks (.bin)
+    └── recalls/        # Canonical teleport-home recall VFX (.bin)
 ```
 
 ### Legacy `.fantome` Archive Structure
