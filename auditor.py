@@ -36,12 +36,24 @@ REPORT_FILE = WORKSPACE_ROOT / "auditor_ledger.log"
 AI_CONTEXT_FILE = WORKSPACE_ROOT / "ai_context.md"
 
 TOOLS_DIR = WORKSPACE_ROOT / "tools"
-WADTOOLS = TOOLS_DIR / "wadtools.exe" if (TOOLS_DIR / "wadtools.exe").is_file() else WORKSPACE_ROOT / "wadtools.exe"
-RITOBIN = TOOLS_DIR / "ritobin.exe" if (TOOLS_DIR / "ritobin.exe").is_file() else WORKSPACE_ROOT / "ritobin.exe"
 HASHES_DIR = TOOLS_DIR / "hashes"
 HASHES_GAME = HASHES_DIR / "hashes.game.txt"
 SKINS_METADATA_FILE = HASHES_DIR / "skins.json"
 SKINS_VERSION_FILE = SKINS_METADATA_FILE.with_suffix(".version")
+
+
+def resolve_tool(name: str) -> Path:
+	candidates = [
+		TOOLS_DIR / f"{name}.exe",
+		WORKSPACE_ROOT / f"{name}.exe",
+		TOOLS_DIR / name,
+		WORKSPACE_ROOT / name,
+	]
+	for c in candidates:
+		if c.is_file():
+			return c
+	return TOOLS_DIR / f"{name}.exe"
+
 
 MAX_PARALLEL_JOBS = max(1, int((os.cpu_count() or 4) * 0.60))
 REPORT_LOCK = threading.Lock()
@@ -238,9 +250,11 @@ def ensure_toolkit_binaries(
 	tools_dir = Path(tools_dir)
 	tools_dir.mkdir(parents=True, exist_ok=True)
 
-	wadtools_path = tools_dir / "wadtools.exe"
-	ritobin_path = tools_dir / "ritobin.exe"
-	leaguemod_path = tools_dir / "league-mod.exe"
+	wadtools_path = resolve_tool("wadtools")
+	ritobin_path = resolve_tool("ritobin")
+
+	if not wadtools_path.is_file() or not ritobin_path.is_file():
+		force = True
 
 	zip_dest = tools_dir / "tools.zip"
 	etag_path = tools_dir / "tools.zip.etag"
@@ -254,14 +268,14 @@ def ensure_toolkit_binaries(
 
 		updated = _download_conditional(LTK_TOOLS_ZIP_URL, zip_dest, etag_path, timeout=35)
 
-		if updated or not wadtools_path.is_file() or not ritobin_path.is_file() or not leaguemod_path.is_file():
+		if updated or not wadtools_path.is_file() or not ritobin_path.is_file():
 			if zip_dest.is_file():
 				if progress_callback:
 					progress_callback("Extracting updated LTK binaries...")
 				with zipfile.ZipFile(zip_dest, "r") as archive:
 					for member in archive.infolist():
 						filename = Path(member.filename).name
-						if filename.lower() in ("wadtools.exe", "ritobin.exe", "league-mod.exe"):
+						if filename.lower() in ("wadtools.exe", "ritobin.exe"):
 							target_file = tools_dir / filename
 							with archive.open(member) as source, open(target_file, "wb") as target:
 								shutil.copyfileobj(source, target)
@@ -273,7 +287,14 @@ def ensure_toolkit_binaries(
 				progress_callback("LTK tools verified (cached).")
 	except Exception as exc:
 		if not wadtools_path.is_file() or not ritobin_path.is_file():
-			sys.stderr.write(f"Failed to obtain tools from {LTK_TOOLS_ZIP_URL}: {exc}\n")
+			raise RuntimeError(f"Failed to download required tools from {LTK_TOOLS_ZIP_URL}: {exc}")
+
+	final_wadtools = resolve_tool("wadtools")
+	final_ritobin = resolve_tool("ritobin")
+	if not final_wadtools.is_file():
+		raise FileNotFoundError(f"wadtools.exe not found at {final_wadtools}. Check your connection or antivirus.")
+	if not final_ritobin.is_file():
+		raise FileNotFoundError(f"ritobin.exe not found at {final_ritobin}. Check your connection or antivirus.")
 
 
 def run_silent_cmd(cmd: list[str]) -> subprocess.CompletedProcess:
@@ -314,13 +335,13 @@ def decompile_single_bin_job(args: tuple[Path, Path, Path, Path | None]) -> bool
 
 
 def decompile_bin_job(b: Path) -> None:
-	cmd_dec = build_ritobin_cmd(RITOBIN, "decompile", b, b.with_suffix(b.suffix + ".txt"), HASHES_DIR)
+	cmd_dec = build_ritobin_cmd(resolve_tool("ritobin"), "decompile", b, b.with_suffix(b.suffix + ".txt"), HASHES_DIR)
 	run_silent_cmd(cmd_dec)
 
 
 def recompile_txt_job(txt_file: Path) -> tuple[Path | None, str]:
 	out_bin = txt_file.with_name(txt_file.name[:-4])
-	cmd_rec = build_ritobin_cmd(RITOBIN, "recompile", txt_file, out_bin, HASHES_DIR)
+	cmd_rec = build_ritobin_cmd(resolve_tool("ritobin"), "recompile", txt_file, out_bin, HASHES_DIR)
 	res = run_silent_cmd(cmd_rec)
 	err_msg = res.stderr or res.stdout or ""
 	return (out_bin if res.returncode == 0 and out_bin.is_file() else None, err_msg)
@@ -1435,7 +1456,7 @@ class ChampionAuditorApp:
 		add_step("2. Auditing", "Select the problematic champion skin, then click 'AUDIT' button, wait for the audit to finish.")
 		add_step("3. Reporting", "Click 'COPY REPORT' below and paste into AI Chat, then wait AI tell you which row requires a payload.")
 		add_step("4. Fixing", "Right-click only the row(s) requested by the AI to 'Copy payload', double-click it to paste the fix and save.")
-		add_step("5. Finishing", "Build your .modpkg package with champions module again.", is_last=True)
+		add_step("5. Finishing", "Build your package with champions module again.", is_last=True)
 
 		guide_win.update_idletasks()
 		req_w = max(500, guide_win.winfo_reqwidth())
@@ -1514,11 +1535,18 @@ class ChampionAuditorApp:
 		champ_name = wad_path.name.replace(".wad.client", "")
 		critical_threats: list[dict] = []
 
+		wadtools_exe = resolve_tool("wadtools")
+		ritobin_exe = resolve_tool("ritobin")
+		if not wadtools_exe.is_file():
+			raise FileNotFoundError(f"wadtools.exe not found at {wadtools_exe}")
+		if not ritobin_exe.is_file():
+			raise FileNotFoundError(f"ritobin.exe not found at {ritobin_exe}")
+
 		with tempfile.TemporaryDirectory(prefix=f"audit_{champ_name}_") as tmp_d_str:
 			tmp_dir = Path(tmp_d_str)
 
 			extract_regex = rf"(?i)(skins/skin\d+\.bin$|skins/(?:base|skin0|skin{skin_filter})/.*\.skn$)"
-			cmd_extract = [str(WADTOOLS), "extract", "-i", str(wad_path), "-o", str(tmp_dir), "--overwrite", "-x", extract_regex]
+			cmd_extract = [str(wadtools_exe), "extract", "-i", str(wad_path), "-o", str(tmp_dir), "--overwrite", "-x", extract_regex]
 			hashes_game = HASHES_GAME if HASHES_GAME.is_file() else None
 			if hashes_game and hashes_game.is_file():
 				cmd_extract += ["-H", str(hashes_game)]
@@ -1536,7 +1564,7 @@ class ChampionAuditorApp:
 				if re.search(rf"[/\\]skin(?:0|{skin_filter})\.bin$", b.as_posix(), re.IGNORECASE)
 			]
 			decompile_jobs = [
-				(b, b.with_suffix(b.suffix + ".txt"), RITOBIN, HASHES_DIR)
+				(b, b.with_suffix(b.suffix + ".txt"), ritobin_exe, HASHES_DIR)
 				for b in target_bins
 			]
 			with ThreadPoolExecutor(max_workers=MAX_PARALLEL_JOBS) as executor:
@@ -2091,7 +2119,15 @@ class ChampionAuditorApp:
 
 					all_id_regex = "|".join(["0"] + sorted(list(target_skin_ids), key=int))
 					extract_regex = rf"(?i)(skins/skin({all_id_regex})\.bin$|skins/base/.*\.skn$)"
-					cmd_extract = [str(WADTOOLS), "extract", "-i", str(wad_target), "-o", str(temp_dir), "--overwrite", "-x", extract_regex]
+
+					wadtools_exe = resolve_tool("wadtools")
+					ritobin_exe = resolve_tool("ritobin")
+					if not wadtools_exe.is_file():
+						raise FileNotFoundError(f"wadtools.exe not found at {wadtools_exe}")
+					if not ritobin_exe.is_file():
+						raise FileNotFoundError(f"ritobin.exe not found at {ritobin_exe}")
+
+					cmd_extract = [str(wadtools_exe), "extract", "-i", str(wad_target), "-o", str(temp_dir), "--overwrite", "-x", extract_regex]
 					if HASHES_GAME.is_file():
 						cmd_extract += ["-H", str(HASHES_GAME)]
 					run_silent_cmd(cmd_extract)
@@ -2216,7 +2252,7 @@ class ChampionAuditorApp:
 					metadata = {
 						"Name": f"{champ.capitalize()} (Skin{skin_id}) — Vanilla Test",
 						"Author": "Neve",
-						"Version": "1.0.0",
+						"Version": APP_VERSION,
 						"Description": f"Isolated test package for {champ} (Skin{skin_id}).",
 						"License": "CC-BY-NC-SA-4.0",
 						"Tags": ["Vanilla", "Restoration"],
@@ -2243,28 +2279,10 @@ Disclaimer:
 Provided "AS IS", without warranties of any kind. Unofficial community project;
 League of Legends and all related game assets belong to Riot Games, Inc.
 """
-					preview_img = None
-					search_dirs = [WORKSPACE_ROOT, TOOLS_DIR]
-					if hasattr(sys, "_MEIPASS"):
-						search_dirs.insert(0, Path(getattr(sys, "_MEIPASS")))
-
-					for s_dir in search_dirs:
-						for img_name in ("preview.png", "preview.jpg", "banner.png", "image.png", "icon.png"):
-							cand = s_dir / img_name
-							if cand.is_file():
-								preview_img = cand
-								break
-						if preview_img:
-							break
-
 					with zipfile.ZipFile(fantome_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
 						archive.writestr("META/info.json", info_json_bytes)
 						archive.writestr("META/README.md", readme_md.encode("utf-8"))
 						archive.writestr("META/LICENSE", license_text.encode("utf-8"))
-
-						if preview_img:
-							archive.write(preview_img, "META/image.png")
-							archive.write(preview_img, "META/icon.png")
 
 						for file_path, arcname in archive_files:
 							archive.write(file_path, arcname)
@@ -2298,6 +2316,7 @@ League of Legends and all related game assets belong to Riot Games, Inc.
 				self.root.after(0, on_error)
 
 		threading.Thread(target=worker, daemon=True).start()
+
 
 if __name__ == "__main__":
 	tk_root = tk.Tk()

@@ -4714,7 +4714,7 @@ class TkApp:
 			"modpkg": {
 				"title": ".MODPKG",
 				"badge": "RECOMMENDED",
-				"tip": "All-in-one package. Turn individual features on or off directly inside LTK Manager",
+				"tip": "All-in-one package, turn individual features on or off directly inside LTK Manager",
 				"col": self.C_CYAN_MAGIC,
 				"bg_active": "#12202e",
 				"pill_bg_active": "#162f42",
