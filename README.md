@@ -335,10 +335,10 @@ The output package is assembled directly as a modern `.modpkg` project (or legac
 ```
 VanillaTrueMod.modpkg
 ├── _meta_/
-│   ├── manifest.json   # Mod metadata, authors, layer definitions & tags
-│   ├── README.md       # Overview, restoration checklist & dedications
-│   ├── LICENSE         # Official CC BY-NC-SA 4.0 License
-│   └── thumbnail       # Package artwork
+│   ├── manifest.json
+│   ├── README.md
+│   ├── LICENSE
+│   └── thumbnail
 └── content/
     ├── base/
     ├── champions/
@@ -354,11 +354,11 @@ VanillaTrueMod.modpkg
 ```
 VanillaTrueMod.fantome
 ├── META/
-│   ├── info.json       # Mod metadata, versioning, author & details description
-│   ├── README.md       # Overview, restoration checklist & dedications
-│   ├── LICENSE         # Official CC BY-NC-SA 4.0 License
-│   ├── image.png       # High-resolution presentation banner
-│   └── icon.png        # Square list thumbnail
+│   ├── info.json
+│   ├── README.md
+│   ├── LICENSE
+│   ├── image.png
+│   └── icon.png
 └── WAD/
     ├── map11.wad.client/
     ├── ui.wad.client/
