@@ -35,12 +35,12 @@ Traditional custom mods rely on placeholder textures, foreign dummy meshes, or d
 Operating on a zero-asset doctrine, VTB restores a complete vanilla state without bundling foreign files. Across all supported modules, it rebinds champion skins, vision wards, and map assets back to local Base definitions, while routing structures and minions strictly to their canonical factions. Ground decals, props, nexus finishers, and special recall overlays are neutralized at the engine property level. If graphics driver contracts demand valid assets to suppress clutter safely, VTB synthesizes hardware-compliant bytecode in memory on the fly. This ensures authentic visual clarity with zero file bloat, uncompromised hitbox parity, and a native experience.
 
 > [!IMPORTANT]
-> * **Instant Build:** Compiles in seconds via native LTK Game Data Declarations (`game_data.yaml` + `!ref`) and binary Table of Contents (TOC) inspection, bypassing monolithic WAD extractions.
-> * **Temp Buffer:** Decompresses into an isolated `%TEMP%` directory without touching game files, pruned automatically upon completion.
-> * **LTK Storage:** Staging mods across 170 champion archives takes disk space in LTK's overlay cache (~21 GB with Champions active, or ~3 GB if only Map/Structures/Minions layers are enabled).
-> * **Hash Cache:** Validated via `WAD_HASH:SCRIPT_HASH`. Re-compilations are near-instant, keeping a compact local cache.
-> * **Patch-Resilient:** Game Data Declarations use runtime `!ref` bindings that automatically inherit changes across new game patches without breaking.
-> * **Skin Curation:** Over **95% of skins revert automatically**. Edge cases with unique submeshes or animations resolve in under 2 minutes via **`SKIN FIX`** and reasoning AI.
+> * **Instant Build:** Compiles in **seconds** via **native LTK Game Data Declarations** (`game_data.yaml` + `!ref`) and **binary Table of Contents (TOC)** inspection, bypassing monolithic WAD extractions.
+> * **Temp Buffer:** Decompresses into an **isolated `%TEMP%` directory** without touching game files, pruned automatically upon completion.
+> * **LTK Storage:** Staging mods across **170 champion archives** takes disk space in LTK's overlay cache (**~21 GB** with Champions active, or **~3 GB** if only Map/Structures/Minions layers are enabled).
+> * **Hash Cache:** Validated via **`WAD_HASH:SCRIPT_HASH`**. Re-compilations are **near-instant**, keeping a compact local cache.
+> * **Patch-Resilient:** Game Data Declarations use **runtime `!ref` bindings** that automatically inherit changes across new game patches without breaking.
+> * **Skin Curation:** Over **95% of skins revert automatically**. Edge cases with unique submeshes or animations resolve in **under 2 minutes** via **`SKIN FIX`** and reasoning AI.
 
 ## 📌 Setup
 
