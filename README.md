@@ -53,7 +53,10 @@ Operating on a zero-asset doctrine, VTB restores a complete vanilla state withou
 4. **Build your restoration mod:**  
    Choose your desired package format (`.modpkg` recommended) and press **`BUILD PACKAGE`**.
 5. **Install into League of Legends:**  
-   Click **`📁 OPEN BUILD FOLDER`**, drag `VanillaTrueMod.modpkg` (or `.fantome`) into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it! *(With `.modpkg`, you can toggle individual restoration layers directly inside LTK Manager).*
+   Click **`📁 OPEN BUILD FOLDER`**, drag `VanillaTrueMod.modpkg` (or `.fantome`) into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it!
+
+> [!TIP]
+> **Dynamic Layer Control:** When using the **`.modpkg`** format, you can select the mod in LTK Manager and toggle individual restoration layers (*Champions, Structures, Minions, Wards, Accents, Finishers, Recalls*) on or off on the fly—no rebuilding required!
 
 ### 🩺 How to Fix a Problematic Skin
 If any skin has visual issues, you can curate it in under 2 minutes with AI assistance:
