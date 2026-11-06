@@ -102,8 +102,8 @@ jobs:
             #### ⚡️ Quick Installation:
             1. Download and extract **`VanillaTrueBuilder.zip`** below.
             2. Run **`VanillaTrueBuilder.exe`**.
-            3. Select your desired restoration modules (or **Select All**) and click **`BUILD PACKAGE (.FANTOME)`**.
-            4. Drag the generated **`VanillaTrueMod.fantome`** into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it!
+            3. Select your desired restoration modules (or **Select All**) and click **`BUILD PACKAGE (.MODPKG)`**.
+            4. Drag the generated **`VanillaTrueMod.modpkg`** (or .fantome) into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it!
 
             ---
 
