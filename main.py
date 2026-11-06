@@ -2612,6 +2612,7 @@ def build_layer_champions(
 	champion_wads: list[Path],
 	project_dir: Path,
 	cache_dir: Path,
+	map11_cache_dir: Path | None = None,
 	dry_run: bool = False,
 ) -> None:
 	if dry_run:
@@ -2628,6 +2629,19 @@ def build_layer_champions(
 				dest_f = dest_wad_dir / rel
 				dest_f.parent.mkdir(parents=True, exist_ok=True)
 				shutil.copy2(cached_file, dest_f)
+
+	if map11_cache_dir and map11_cache_dir.is_dir():
+		dest_map_champ = content_champ / "Map11.wad.client"
+		for char_name in MAP_CHAMPION_CHARACTERS:
+			for char_root in (map11_cache_dir / "data" / "characters", map11_cache_dir / "characters"):
+				skins_dir = char_root / char_name / "skins"
+				if skins_dir.is_dir():
+					for bin_file in skins_dir.glob("skin*.bin"):
+						if bin_file.is_file() and bin_file.stem.lower() != "skin0":
+							rel = bin_file.relative_to(map11_cache_dir)
+							dest = dest_map_champ / rel
+							dest.parent.mkdir(parents=True, exist_ok=True)
+							shutil.copy2(bin_file, dest)
 
 
 def build_layer_structures(
@@ -2707,64 +2721,31 @@ def build_layer_wards(
 
 
 def build_layer_accents(
-	map_wad: Path,
 	project_dir: Path,
-	tools: dict,
+	map11_cache_dir: Path,
 	dry_run: bool = False,
-	progress_callback: Callable[[float, str, str, str], None] | None = None,
-	scheduler: ProgressScheduler | None = None,
 ) -> None:
-	content_accents = project_dir / "content" / "accents"
+	if dry_run or not map11_cache_dir.is_dir():
+		return
+	content_accents = project_dir / "content" / "accents" / "Map11.wad.client"
+	for current, _, filenames in os.walk(str(map11_cache_dir)):
+		for f in filenames:
+			if f.endswith(".txt") or f == ".hash":
+				continue
+			p = Path(current) / f
+			rel = p.relative_to(map11_cache_dir)
+			rel_lower = rel.as_posix().lower()
 
-	def emit(sub_pct: float, phase: str, status: str, cur: str = ""):
-		if progress_callback and scheduler:
-			progress_callback(scheduler.pct("map11", sub_pct), phase, status, cur)
-
-	if map_wad.is_file():
-		with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix="vtb_accents_map11_") as tmp_str:
-			tmp_dir = Path(tmp_str)
-			emit(0.65, "Map11: Extract", "", f"Extracting {map_wad.name}...")
-			extract_wad(
-				map_wad,
-				tmp_dir,
-				tools=tools,
-				filter_type=None,
-				filter_pattern=r"(?i)base_srx\.materials\.bin$",
-				dry_run=dry_run,
-				progress_callback=lambda st: emit(0.68, "Map11: Extract", "", f"{map_wad.name} › {Path(st).name}"),
+			is_accent = (
+				"base_srx.materials.bin" in rel_lower
+				or rel_lower.endswith("map11.bin")
+				or any(ev in rel_lower for ev in EVENT_CHARACTERS)
+				or any(bn in rel_lower for bn in BANNER_CHARACTERS)
 			)
-
-			decompile_bin_files(
-				tmp_dir,
-				tools,
-				dry_run=dry_run,
-				parallel=False,
-				progress_callback=lambda i, tot, n: emit(0.70 + (i / max(tot, 1)) * 0.05, "Map11: Decompile", f"({i}/{tot})", f"{map_wad.name} › {n}"),
-			)
-
-			cleaned = clean_map_elements(
-				tmp_dir,
-				dry_run=dry_run,
-				progress_callback=lambda i, tot, n: emit(0.75 + (i / max(tot, 1)) * 0.10, "Map11: Sanitize", f"({i}/{tot})", f"{map_wad.name} › {n}"),
-			)
-
-			if cleaned:
-				recompile_text_to_bin(
-					tmp_dir,
-					tools,
-					dry_run=dry_run,
-					file_selector=lambda _: cleaned,
-					parallel=False,
-					progress_callback=lambda i, tot, n: emit(0.85 + (i / max(tot, 1)) * 0.10, "Map11: Recompile", f"({i}/{tot})", f"{map_wad.name} › {n}"),
-				)
-				if not dry_run:
-					for cl_txt in cleaned:
-						out_bin = cl_txt.with_name(cl_txt.name[:-4])
-						if out_bin.is_file():
-							rel = out_bin.relative_to(tmp_dir)
-							dest_mat = content_accents / "Map11.wad.client" / rel
-							dest_mat.parent.mkdir(parents=True, exist_ok=True)
-							shutil.copy2(out_bin, dest_mat)
+			if is_accent:
+				dest = content_accents / rel
+				dest.parent.mkdir(parents=True, exist_ok=True)
+				shutil.copy2(p, dest)
 
 
 def build_layer_global_banners(
@@ -3194,15 +3175,7 @@ def build_vanilla_pipeline(
 					if opt_wards:
 						build_layer_wards(project_dir, map11_cache_dir, dry_run=dry_run)
 					if opt_accents:
-						mat_cached = map11_cache_dir / "data" / "maps" / "shipping" / "map11" / "base_srx.materials.bin"
-						if not mat_cached.is_file():
-							mat_candidates = list(map11_cache_dir.rglob("base_srx.materials.bin"))
-							mat_cached = mat_candidates[0] if mat_candidates else None
-						if mat_cached and mat_cached.is_file():
-							rel = mat_cached.relative_to(map11_cache_dir)
-							dest = project_dir / "content" / "accents" / "Map11.wad.client" / rel
-							dest.parent.mkdir(parents=True, exist_ok=True)
-							shutil.copy2(mat_cached, dest)
+						build_layer_accents(project_dir, map11_cache_dir, dry_run=dry_run)
 				else:
 					with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix="vanilla_map11_") as temp_dir_str:
 						temp_dir = Path(temp_dir_str)
@@ -3281,10 +3254,6 @@ def build_vanilla_pipeline(
 										dest.parent.mkdir(parents=True, exist_ok=True)
 										shutil.copy2(out_bin, dest)
 										copied += 1
-										if "base_srx.materials.bin" in out_bin.name.lower():
-											dest_layer = project_dir / "content" / "accents" / "Map11.wad.client" / rel
-											dest_layer.parent.mkdir(parents=True, exist_ok=True)
-											shutil.copy2(out_bin, dest_layer)
 
 								map11_tex_dest = map11_cache_dir / MAP11_TRANSPARENT_TEX_REL
 								map11_tex_dest.parent.mkdir(parents=True, exist_ok=True)
@@ -3299,6 +3268,8 @@ def build_vanilla_pipeline(
 						build_layer_minions(project_dir, map11_cache_dir, dry_run=dry_run)
 					if opt_wards and not dry_run:
 						build_layer_wards(project_dir, map11_cache_dir, dry_run=dry_run)
+					if opt_accents and not dry_run:
+						build_layer_accents(project_dir, map11_cache_dir, dry_run=dry_run)
 
 				emit_progress(scheduler.pct("map11", 1.0), "MAP11 DONE", "", "Map11 processed successfully!")
 
@@ -3541,7 +3512,13 @@ def build_vanilla_pipeline(
 					),
 				)
 
-				build_layer_champions(champion_wads, project_dir, cfg["cache_dir"], dry_run=dry_run)
+				build_layer_champions(
+					champion_wads,
+					project_dir,
+					cfg["cache_dir"],
+					map11_cache_dir=get_canonical_cache_dir(cfg["cache_dir"], map_wad),
+					dry_run=dry_run,
+				)
 				emit_progress(scheduler.pct("champions", 1.0), "CHAMPIONS DONE", "", "All champions processed successfully!")
 				
 			# 5. PACKAGE
