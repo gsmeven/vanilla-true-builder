@@ -4201,9 +4201,13 @@ class TkApp:
 		)
 		style.map(
 			"Hextech.TCheckbutton",
-			background=[("active", self.C_BG_CARD_HOVER)],
-			foreground=[("active", self.C_GOLD_ACCENT)],
-			indicatorcolor=[("selected", self.C_CYAN_MAGIC), ("pressed", self.C_GOLD_ACCENT)],
+			background=[("active", self.C_BG_CARD_HOVER), ("disabled", self.C_BG_CARD)],
+			foreground=[("disabled", "#4e5a67"), ("active", self.C_GOLD_ACCENT)],
+			indicatorcolor=[
+				("disabled", "#141c24"),
+				("selected", self.C_CYAN_MAGIC),
+				("pressed", self.C_GOLD_ACCENT),
+			],
 		)
 
 		style.configure(
@@ -4249,9 +4253,9 @@ class TkApp:
 		)
 		style.map(
 			"HextechUtil.TButton",
-			background=[("active", self.C_BG_CARD), ("pressed", "#1f2c3a")],
-			foreground=[("active", self.C_GOLD_TEXT)],
-			bordercolor=[("active", self.C_BORDER_GOLD)],
+			background=[("disabled", "#0b1016"), ("active", self.C_BG_CARD), ("pressed", "#1f2c3a")],
+			foreground=[("disabled", "#4e5a67"), ("active", self.C_GOLD_TEXT)],
+			bordercolor=[("disabled", "#141c24"), ("active", self.C_BORDER_GOLD)],
 		)
 
 		style.configure(
@@ -4293,6 +4297,8 @@ class TkApp:
 				self.fantome_modules_container.pack(fill=tk.X, pady=(0, 10), before=self.action_frame)
 
 	def _select_format(self, val: str) -> None:
+		if hasattr(self, "btn_compile") and str(self.btn_compile["state"]) == "disabled":
+			return
 		if self.pkg_format_var.get().lower() == val:
 			return
 		self.pkg_format_var.set(val)
@@ -4300,6 +4306,8 @@ class TkApp:
 		self._on_format_changed()
 
 	def _hover_format_tab(self, val: str, is_hover: bool) -> None:
+		if hasattr(self, "btn_compile") and str(self.btn_compile["state"]) == "disabled":
+			return
 		if self.pkg_format_var.get().lower() == val:
 			return
 		d = self.switcher_tabs.get(val)
@@ -4366,7 +4374,8 @@ class TkApp:
 
 		tools_frame = ttk.Frame(format_row, style="Root.TFrame")
 		tools_frame.pack(side=tk.RIGHT, anchor="se", pady=(0, 12))
-		ttk.Button(tools_frame, text="SKIN FIX", style="HextechUtil.TButton", command=self.launch_auditor).pack(side=tk.LEFT)
+		self.btn_skin_fix = ttk.Button(tools_frame, text="SKIN FIX", style="HextechUtil.TButton", command=self.launch_auditor)
+		self.btn_skin_fix.pack(side=tk.LEFT)
 
 		format_box = tk.Frame(root_frame, bg=self.C_BG_ROOT)
 		format_box.pack(fill=tk.X, pady=(0, 10))
@@ -4399,7 +4408,7 @@ class TkApp:
 		self.format_info_label.pack(anchor="w", padx=2, pady=(4, 0))
 
 		for i, (val, info) in enumerate(self.switcher_info.items()):
-			tab_frame = tk.Frame(switcher, bg="#0a1017", padx=8, pady=8, cursor="hand2")
+			tab_frame = tk.Frame(switcher, bg="#0a1017", padx=8, pady=8)
 			tab_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0 if i == 0 else 4, 0))
 
 			center_box = tk.Frame(tab_frame, bg="#0a1017")
@@ -4482,14 +4491,18 @@ class TkApp:
 			("Disable Champions Skins", "Set all champions skins to default", self.chk_champions),
 		]
 
+		self.module_checkboxes = []
 		for title, desc, var in self.module_defs:
 			chk = ttk.Checkbutton(card_content, text=f"{title} — {desc}", variable=var, style="Hextech.TCheckbutton")
 			chk.pack(anchor="w", pady=1)
+			self.module_checkboxes.append(chk)
 
 		ctrl_row = ttk.Frame(modules_card, style="CardInner.TFrame")
 		ctrl_row.pack(fill=tk.X, pady=(6, 2))
-		ttk.Button(ctrl_row, text="Select All", style="HextechUtil.TButton", command=self.select_all).pack(side=tk.LEFT, padx=(0, 6))
-		ttk.Button(ctrl_row, text="Deselect All", style="HextechUtil.TButton", command=self.deselect_all).pack(side=tk.LEFT)
+		self.btn_select_all = ttk.Button(ctrl_row, text="Select All", style="HextechUtil.TButton", command=self.select_all)
+		self.btn_select_all.pack(side=tk.LEFT, padx=(0, 6))
+		self.btn_deselect_all = ttk.Button(ctrl_row, text="Deselect All", style="HextechUtil.TButton", command=self.deselect_all)
+		self.btn_deselect_all.pack(side=tk.LEFT)
 
 		self.action_frame.pack(fill=tk.X, pady=(0, 10))
 
@@ -4557,10 +4570,14 @@ class TkApp:
 		self._append_trace(" VANILLA TRUE BUILDER — Ready for compilation.", tag="cyan")
 
 	def select_all(self) -> None:
+		if hasattr(self, "btn_compile") and str(self.btn_compile["state"]) == "disabled":
+			return
 		for _, _, var in self.module_defs:
 			var.set(True)
 
 	def deselect_all(self) -> None:
+		if hasattr(self, "btn_compile") and str(self.btn_compile["state"]) == "disabled":
+			return
 		for _, _, var in self.module_defs:
 			var.set(False)
 
@@ -4639,6 +4656,12 @@ class TkApp:
 
 	def _set_buttons_state(self, state: str) -> None:
 		self.btn_compile.config(state=state)
+		if hasattr(self, "btn_select_all"):
+			self.btn_select_all.config(state=state)
+		if hasattr(self, "btn_deselect_all"):
+			self.btn_deselect_all.config(state=state)
+		for chk in getattr(self, "module_checkboxes", []):
+			chk.config(state=state)
 
 	def _append_trace(self, message: str, tag: str | None = None) -> None:
 		self.trace.configure(state=tk.NORMAL)
