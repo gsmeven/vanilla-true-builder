@@ -12,6 +12,7 @@ on:
       - 'overrides/**'
       - 'preview.jpg'
       - 'rakuzan.ico'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 # Repository token permissions for release creation and asset upload
@@ -45,12 +46,16 @@ jobs:
         id: get_version
         shell: pwsh
         run: |
-          $ver = "v1.8.3"
+          $ver = ""
           if (Test-Path "main.py") {
             $match = Select-String -Path "main.py" -Pattern 'APP_VERSION\s*=\s*["'']([^"'']+)["'']'
             if ($match -and $match.Matches.Groups[1].Value) {
               $ver = $match.Matches.Groups[1].Value.Trim()
             }
+          }
+          if (-not $ver) {
+            Write-Error "Could not detect APP_VERSION in main.py!"
+            exit 1
           }
           if (-not $ver.StartsWith("v")) { $ver = "v" + $ver }
           Write-Host "Detected Version: $ver"
@@ -102,8 +107,8 @@ jobs:
             #### ⚡️ Quick Installation:
             1. Download and extract **`VanillaTrueBuilder.zip`** below.
             2. Run **`VanillaTrueBuilder.exe`**.
-            3. Select your desired restoration modules (or **Select All**) and click **`BUILD PACKAGE (.MODPKG)`**.
-            4. Drag the generated **`VanillaTrueMod.modpkg`** (or .fantome) into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it!
+            3. Choose your desired package format (**`.modpkg`** recommended) and click **`BUILD PACKAGE`**.
+            4. Drag the generated **`VanillaTrueMod.modpkg`** (or **`.fantome`**) into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it! *(With `.modpkg`, toggle individual restoration layers directly inside LTK Manager).*
 
             ---
 
