@@ -20,6 +20,7 @@
 [⚙️ Technical Core](#️-technical-deep-dive) •
 [🏗️ Architecture](#️-architecture) •
 [🔬 Skin Curation](#-skin-curation) •
+[📦 Packaging](#-packaging-formats) •
 [👥 Ecosystem & Credits](#-author--ecosystem)
 
 <img src="preview.jpg" alt="Vanilla True Builder" width="850px" style="border-radius: 8px; border: 1px solid #1a2530; box-shadow: 0 8px 24px rgba(0,0,0,0.6);" />
@@ -325,7 +326,7 @@ The AI receives the exact, pristine baseline data it needs to write the fix, str
 
 </details>
 
-## 📦 Packaging & LTK Manager
+## 📦 Packaging Formats
 
 The output package is assembled directly as a modern `.modpkg` project (or legacy `.fantome` archive) tailored for [LTK Manager](https://github.com/LeagueToolkit):
 
