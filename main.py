@@ -2748,67 +2748,6 @@ def build_layer_accents(
 				shutil.copy2(p, dest)
 
 
-def build_layer_global_banners(
-	global_wad: Path,
-	project_dir: Path,
-	tools: dict,
-	dry_run: bool = False,
-	progress_callback: Callable[[float, str, str, str], None] | None = None,
-	scheduler: ProgressScheduler | None = None,
-) -> None:
-	content_accents = project_dir / "content" / "accents"
-
-	def emit(sub_pct: float, phase: str, status: str, cur: str = ""):
-		if progress_callback and scheduler:
-			progress_callback(scheduler.pct("ui", sub_pct), phase, status, cur)
-
-	if global_wad.is_file():
-		with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix="vtb_accents_global_") as tmp_str:
-			tmp_dir = Path(tmp_str)
-			emit(0.60, "GLOBAL.WAD: Extract", "", f"Scanning {global_wad.name} banners...")
-			extract_wad(
-				global_wad,
-				tmp_dir,
-				tools=tools,
-				filter_type=None,
-				filter_pattern=r"(?i)(loadouts/summonerbanners|loadouts/summonertrophies)",
-				dry_run=dry_run,
-				progress_callback=lambda st: emit(0.63, "GLOBAL.WAD: Extract", "", f"Banners › {Path(st).name}"),
-			)
-
-			decompile_bin_files(
-				tmp_dir,
-				tools,
-				dry_run=dry_run,
-				parallel=False,
-				progress_callback=lambda i, tot, n: emit(0.66 + (i / max(tot, 1)) * 0.04, "GLOBAL.WAD: Decompile", f"({i}/{tot})", f"Banner › {n}"),
-			)
-
-			cleaned_banners = clean_summoner_elements(
-				tmp_dir,
-				dry_run=dry_run,
-				progress_callback=lambda i, tot, n: emit(0.72 + (i / max(tot, 1)) * 0.04, "GLOBAL.WAD: Banners", f"({i}/{tot})", f"{global_wad.name} › {n}"),
-			)
-
-			if cleaned_banners:
-				recompile_text_to_bin(
-					tmp_dir,
-					tools,
-					dry_run=dry_run,
-					file_selector=lambda _: cleaned_banners,
-					parallel=False,
-					progress_callback=lambda i, tot, n: emit(0.80 + (i / max(tot, 1)) * 0.04, "GLOBAL.WAD: Recompile", f"({i}/{tot})", f"Banner › {n}"),
-				)
-				if not dry_run:
-					for cl_txt in cleaned_banners:
-						out_bin = cl_txt.with_name(cl_txt.name[:-4])
-						if out_bin.is_file():
-							rel = out_bin.relative_to(tmp_dir)
-							dest_banner = content_accents / "Global.wad.client" / rel
-							dest_banner.parent.mkdir(parents=True, exist_ok=True)
-							shutil.copy2(out_bin, dest_banner)
-
-
 def build_layer_finishers(
 	project_dir: Path,
 	ui_cache_dir: Path,
@@ -2823,70 +2762,6 @@ def build_layer_finishers(
 			dest = content_fin / rel
 			dest.parent.mkdir(parents=True, exist_ok=True)
 			shutil.copy2(bin_file, dest)
-
-
-def build_layer_recalls(
-	global_wad: Path,
-	project_dir: Path,
-	tools: dict,
-	workspace_root: Path,
-	dry_run: bool = False,
-	progress_callback: Callable[[float, str, str, str], None] | None = None,
-	scheduler: ProgressScheduler | None = None,
-) -> None:
-	content_recalls = project_dir / "content" / "recalls"
-	if not global_wad.is_file():
-		return
-
-	def emit(sub_pct: float, phase: str, status: str, cur: str = ""):
-		if progress_callback and scheduler:
-			progress_callback(scheduler.pct("ui", sub_pct), phase, status, cur)
-
-	with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix="vtb_recalls_") as tmp_str:
-		tmp_dir = Path(tmp_str)
-		emit(0.85, "GLOBAL.WAD: Extract", "", f"Extracting {global_wad.name} shared recalls...")
-		extract_wad(
-			global_wad,
-			tmp_dir,
-			tools=tools,
-			filter_type=None,
-			filter_pattern=r"(?i)(?:shared|troy|recall).*\.bin$",
-			dry_run=dry_run,
-			progress_callback=lambda st: emit(0.87, "GLOBAL.WAD: Extract", "", f"Recalls › {Path(st).name}"),
-		)
-
-		decompile_bin_files(
-			tmp_dir,
-			tools,
-			dry_run=dry_run,
-			parallel=False,
-			progress_callback=lambda i, tot, n: emit(0.89, "GLOBAL.WAD: Decompile", f"({i}/{tot})", f"{global_wad.name} › {n}"),
-		)
-
-		cleaned = clean_recall_elements(
-			tmp_dir,
-			workspace_root=workspace_root,
-			dry_run=dry_run,
-			progress_callback=lambda i, tot, n: emit(0.92, "GLOBAL.WAD: Recalls", f"({i}/{tot})", f"{global_wad.name} › {n}"),
-		)
-
-		if cleaned:
-			recompile_text_to_bin(
-				tmp_dir,
-				tools,
-				dry_run=dry_run,
-				file_selector=lambda _: cleaned,
-				parallel=False,
-				progress_callback=lambda i, tot, n: emit(0.96, "GLOBAL.WAD: Recompile", f"({i}/{tot})", f"{global_wad.name} › {n}"),
-			)
-			if not dry_run:
-				for cl_txt in cleaned:
-					out_bin = cl_txt.with_name(cl_txt.name[:-4])
-					if out_bin.is_file():
-						rel = out_bin.relative_to(tmp_dir)
-						dest_shared = content_recalls / "Global.wad.client" / rel
-						dest_shared.parent.mkdir(parents=True, exist_ok=True)
-						shutil.copy2(out_bin, dest_shared)
 
 
 def pack_modpkg_project(
@@ -3159,7 +3034,7 @@ def build_vanilla_pipeline(
 				init_mod_project_structure(project_dir, workspace_root=workspace_root, options=options)
 
 			# 1. MAP11 CONTAINER & SUB-MODULES
-			needs_map = any([opt_accents, opt_wards, opt_structures, opt_minions]) and map_wad.is_file()
+			needs_map = any([opt_accents, opt_wards, opt_structures, opt_minions, opt_finishers, opt_champions]) and map_wad.is_file()
 			if needs_map:
 				emit_progress(scheduler.pct("map11", 0.0), "PROCESSING MAP11", "", "Verifying canonical Map11 container...")
 				map11_hash = file_fingerprint(map_wad)
@@ -3276,7 +3151,7 @@ def build_vanilla_pipeline(
 			# 2. UI.WAD CONTAINER
 			needs_ui = opt_finishers and ui_wad and ui_wad.is_file()
 			if needs_ui:
-				wad_label = ui_wad.stem.upper()
+				wad_label = "UI"
 				emit_progress(scheduler.pct("ui", 0.0), f"PROCESSING {wad_label}", "", f"Checking elements in {ui_wad.name}...")
 				ui_hash = file_fingerprint(ui_wad)
 				ui_cache_dir = get_canonical_cache_dir(cache_dir, ui_wad)
@@ -3358,9 +3233,9 @@ def build_vanilla_pipeline(
 				emit_progress(scheduler.pct("ui", 0.5), f"{wad_label} DONE", "", f"{ui_wad.name} elements processed successfully!")
 
 			# 3. GLOBAL.WAD CONTAINER
-			needs_global = (opt_accents or opt_recalls) and global_wad.is_file()
+			needs_global = (opt_accents or opt_recalls or opt_finishers) and global_wad.is_file()
 			if needs_global:
-				wad_label = global_wad.stem.upper()
+				wad_label = "GLOBAL"
 				emit_progress(scheduler.pct("ui", 0.5), f"PROCESSING {wad_label}", "", f"Checking elements in {global_wad.name}...")
 				global_hash = file_fingerprint(global_wad)
 				global_cache_dir = get_canonical_cache_dir(cache_dir, global_wad)
@@ -3372,25 +3247,24 @@ def build_vanilla_pipeline(
 					LOG.info("Reusing Global elements from master cache: %s", global_wad.name)
 					emit_progress(scheduler.pct("ui", 0.75), f"{wad_label}: Cache", "", f"Valid {global_wad.name} master cache reused...")
 
-					if opt_accents:
-						for b_file in global_cache_dir.rglob("*.bin"):
-							rel_p = b_file.relative_to(global_cache_dir).as_posix().lower()
-							if any(k in rel_p for k in ("summonerbanner", "summonertroph")):
-								dest_b = project_dir / "content" / "accents" / global_wad.name / b_file.relative_to(global_cache_dir)
-								dest_b.parent.mkdir(parents=True, exist_ok=True)
-								shutil.copy2(b_file, dest_b)
-
-					if opt_recalls:
-						for r_file in global_cache_dir.rglob("*.bin"):
-							rel_p = r_file.relative_to(global_cache_dir).as_posix().lower()
-							if "shared" in rel_p:
-								dest_r = project_dir / "content" / "recalls" / global_wad.name / r_file.relative_to(global_cache_dir)
-								dest_r.parent.mkdir(parents=True, exist_ok=True)
-								shutil.copy2(r_file, dest_r)
+					for g_file in global_cache_dir.rglob("*.bin"):
+						rel_p = g_file.relative_to(global_cache_dir).as_posix().lower()
+						if opt_finishers and any(k in rel_p for k in ("nexusfinisher", "endofgame")):
+							dest_f = project_dir / "content" / "finishers" / global_wad.name / g_file.relative_to(global_cache_dir)
+							dest_f.parent.mkdir(parents=True, exist_ok=True)
+							shutil.copy2(g_file, dest_f)
+						elif opt_accents and any(k in rel_p for k in ("summonerbanner", "summonertroph")):
+							dest_b = project_dir / "content" / "accents" / global_wad.name / g_file.relative_to(global_cache_dir)
+							dest_b.parent.mkdir(parents=True, exist_ok=True)
+							shutil.copy2(g_file, dest_b)
+						elif opt_recalls and "shared" in rel_p:
+							dest_r = project_dir / "content" / "recalls" / global_wad.name / g_file.relative_to(global_cache_dir)
+							dest_r.parent.mkdir(parents=True, exist_ok=True)
+							shutil.copy2(g_file, dest_r)
 				else:
 					with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix="vanilla_global_") as temp_glob_str:
 						temp_glob = Path(temp_glob_str)
-						ext_filter_pattern = r"(?i)(loadouts/summonerbanners$|loadouts/summonertrophies$|(?:^|/)shared$)"
+						ext_filter_pattern = r"(?i)(loadouts/nexusfinishers$|loadouts/summonerbanners$|loadouts/summonertrophies$|(?:^|/)shared$)"
 						extract_wad(
 							global_wad,
 							temp_glob,
@@ -3412,6 +3286,19 @@ def build_vanilla_pipeline(
 								f"{global_wad.name} › {name}",
 							),
 						)
+
+						cleaned_fin: list[Path] = []
+						if opt_finishers:
+							cleaned_fin = clean_finisher_elements(
+								temp_glob,
+								dry_run=dry_run,
+								progress_callback=lambda idx, tot, name: emit_progress(
+									scheduler.pct("ui", 0.65 + (idx / max(tot, 1)) * 0.05),
+									f"{wad_label}: Finishers",
+									f"({idx}/{tot})",
+									f"{global_wad.name} › {name}",
+								),
+							)
 
 						cleaned_banners: list[Path] = []
 						if opt_accents:
@@ -3440,7 +3327,7 @@ def build_vanilla_pipeline(
 								),
 							)
 
-						all_glob_recompile = sorted(set(cleaned_banners + cleaned_recalls))
+						all_glob_recompile = sorted(set(cleaned_banners + cleaned_recalls + cleaned_fin))
 						if all_glob_recompile:
 							recompile_text_to_bin(
 								temp_glob,
@@ -3470,7 +3357,11 @@ def build_vanilla_pipeline(
 										copied += 1
 
 										rel_p = rel.as_posix().lower()
-										if opt_accents and any(k in rel_p for k in ("summonerbanner", "summonertroph")):
+										if opt_finishers and any(k in rel_p for k in ("nexusfinisher", "endofgame")):
+											dest_f = project_dir / "content" / "finishers" / global_wad.name / rel
+											dest_f.parent.mkdir(parents=True, exist_ok=True)
+											shutil.copy2(out_b, dest_f)
+										elif opt_accents and any(k in rel_p for k in ("summonerbanner", "summonertroph")):
 											dest_b = project_dir / "content" / "accents" / global_wad.name / rel
 											dest_b.parent.mkdir(parents=True, exist_ok=True)
 											shutil.copy2(out_b, dest_b)
@@ -3659,7 +3550,7 @@ def build_vanilla_pipeline(
 			n_candidates = max(1, len(candidate_ui_wads))
 			for c_idx, target_wad in enumerate(candidate_ui_wads):
 				is_global = (target_wad.name.lower() == "global.wad.client")
-				wad_label = target_wad.stem.upper()
+				wad_label = target_wad.name.split('.')[0].upper()
 				wad_base_ratio = c_idx / n_candidates
 				wad_span_ratio = 1.0 / n_candidates
 
@@ -3755,7 +3646,7 @@ def build_vanilla_pipeline(
 						cleaned_recalls: list[Path] = []
 						if is_global:
 							cleaned_recalls = clean_recall_elements(
-								temp_glob,
+								temp_fin,
 								workspace_root=workspace_root,
 								dry_run=dry_run,
 								progress_callback=lambda idx, tot, name: emit_progress(
