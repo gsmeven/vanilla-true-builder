@@ -12,7 +12,6 @@ on:
       - 'overrides/**'
       - 'preview.jpg'
       - 'rakuzan.ico'
-      - '.github/workflows/**'
   workflow_dispatch:
 
 # Repository token permissions for release creation and asset upload
