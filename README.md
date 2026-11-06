@@ -333,19 +333,19 @@ The output package is assembled directly as a modern `.modpkg` project (or legac
 ```
 VanillaTrueMod.modpkg
 ├── _meta_/
-│   ├── manifest.json   # Mod metadata (v1.8.4), authors, layer definitions & tags
+│   ├── manifest.json   # Mod metadata, authors, layer definitions & tags
 │   ├── README.md       # Overview, restoration checklist & dedications
 │   ├── LICENSE         # Official CC BY-NC-SA 4.0 License
 │   └── thumbnail       # Package artwork
 └── content/
-    ├── base/           # Core framework (priority 0) & transparent safety textures
-    ├── champions/      # Recompiled Base Skin0 .bin properties + in-place .skn aliases
-    ├── structures/     # Canonical Order/Chaos faction turrets, rubble, inhibs & nexus (.bin)
-    ├── minions/        # Canonical Order/Chaos faction minion silhouettes (.bin)
-    ├── wards/          # Expanded default vision wards & trinket definitions (.bin)
-    ├── accents/        # Map11 & Global clutter, ads & trophy neutralization (.bin)
-    ├── finishers/      # Neutralized victory/defeat cinematic & audio banks (.bin)
-    └── recalls/        # Canonical teleport-home recall VFX (.bin)
+    ├── base/           # Base transparent textures
+    ├── champions/      # Champion skins vanilla normalization
+    ├── structures/     # Canonical structure models and rubble
+    ├── minions/        # Canonical faction minion silhouettes
+    ├── wards/          # Vision wards and trinkets normalization
+    ├── accents/        # Map clutter and trophy neutralization
+    ├── finishers/      # Victory/Defeat cinematic finishers neutralization
+    └── recalls/        # Special recall overlays normalization
 ```
 
 ### Legacy `.fantome` Archive Structure
