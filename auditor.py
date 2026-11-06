@@ -38,7 +38,6 @@ AI_CONTEXT_FILE = WORKSPACE_ROOT / "ai_context.md"
 TOOLS_DIR = WORKSPACE_ROOT / "tools"
 WADTOOLS = TOOLS_DIR / "wadtools.exe" if (TOOLS_DIR / "wadtools.exe").is_file() else WORKSPACE_ROOT / "wadtools.exe"
 RITOBIN = TOOLS_DIR / "ritobin.exe" if (TOOLS_DIR / "ritobin.exe").is_file() else WORKSPACE_ROOT / "ritobin.exe"
-LEAGUEMOD = TOOLS_DIR / "league-mod.exe" if (TOOLS_DIR / "league-mod.exe").is_file() else WORKSPACE_ROOT / "league-mod.exe"
 HASHES_DIR = TOOLS_DIR / "hashes"
 HASHES_GAME = HASHES_DIR / "hashes.game.txt"
 SKINS_METADATA_FILE = HASHES_DIR / "skins.json"
@@ -2058,16 +2057,8 @@ class ChampionAuditorApp:
 				ensure_toolkit_binaries(TOOLS_DIR)
 				ensure_ritobin_hashes(HASHES_DIR)
 
-				league_mod = LEAGUEMOD if LEAGUEMOD.is_file() else TOOLS_DIR / "league-mod.exe"
-				if not league_mod.is_file():
-					league_mod = WORKSPACE_ROOT / "league-mod.exe"
-				if not league_mod.is_file():
-					raise FileNotFoundError(f"league-mod.exe not found at {league_mod}")
-
 				with tempfile.TemporaryDirectory(prefix=f"vanilla_restore_{champ}_") as tmp_d_str:
 					temp_dir = Path(tmp_d_str)
-					project_dir = temp_dir / "test_project"
-					content_base = project_dir / "content" / "base" / wad_target.name
 
 					char_name = champ.lower()
 					champ_tpl_dir = OVERRIDES_DIR / char_name / "skins"
@@ -2114,6 +2105,7 @@ class ChampionAuditorApp:
 
 					compiled_count = 0
 					submesh_alias_tasks: list[tuple[str, str, str, str]] = []
+					archive_files: list[tuple[Path, str]] = []
 
 					matching_bins = [
 						p for p in temp_dir.rglob("*.bin")
@@ -2189,14 +2181,14 @@ class ChampionAuditorApp:
 
 						recompiled_bin, rec_err = recompile_txt_job(out_txt)
 						if recompiled_bin and recompiled_bin.is_file():
-							rel_bin_path = recompiled_bin.relative_to(temp_dir)
-							dest_bin = content_base / rel_bin_path
-							dest_bin.parent.mkdir(parents=True, exist_ok=True)
-							shutil.copy2(recompiled_bin, dest_bin)
+							rel_bin_path = recompiled_bin.relative_to(temp_dir).as_posix()
+							arcname = f"WAD/{wad_target.name}/{rel_bin_path}"
+							archive_files.append((recompiled_bin, arcname))
 							compiled_count += 1
 						else:
 							raise RuntimeError(f"Ritobin failed to recompile {out_txt.name}:\n{rec_err}")
 
+					patched_skn_entries: list[tuple[bytes, str]] = []
 					if submesh_alias_tasks:
 						for ent_name, skin_sfx, old_sub, new_sub in submesh_alias_tasks:
 							base_skn_list = [p for p in temp_dir.rglob("*.skn") if "base" in p.as_posix().lower()]
@@ -2211,42 +2203,32 @@ class ChampionAuditorApp:
 							patched_skn_bytes = patch_skn_submesh_inplace(raw_bytes, old_sub, new_sub)
 
 							patched_name = f"{ent_name.capitalize()}_Skin{skin_sfx}.skn"
-							dest_skn = content_base / "assets" / "characters" / ent_name / "skins" / "base" / patched_name
-							dest_skn.parent.mkdir(parents=True, exist_ok=True)
-							dest_skn.write_bytes(patched_skn_bytes)
+							arcname_skn = f"WAD/{wad_target.name}/assets/characters/{ent_name}/skins/base/{patched_name}"
+							patched_skn_entries.append((patched_skn_bytes, arcname_skn))
 							compiled_count += 1
 
 					if compiled_count == 0:
 						raise RuntimeError(f"No files were compiled or packed for {champ} (Skin{skin_id})!")
 
 					pkg_name = f"VanillaTrue_{champ.capitalize()}_Skin{skin_id}"
-					config_path = project_dir / "mod.config.json"
-					manifest = {
-						"name": f"vanilla-test-{champ.lower()}-skin{skin_id}",
-						"display_name": f"{champ.capitalize()} (Skin{skin_id}) — Vanilla Test",
-						"version": "1.0.0",
-						"description": f"Isolated test package for {champ} (Skin{skin_id}).",
-						"authors": ["Neve"],
-						"license": "CC-BY-NC-SA-4.0",
-						"tags": ["Vanilla","Restoration"],
-						"layers": [
-							{
-								"name": "base",
-								"priority": 0,
-								"description": "Restored champion files"
-							}
-						],
+					fantome_path = WORKSPACE_ROOT / f"{pkg_name}.fantome"
+
+					metadata = {
+						"Name": f"{champ.capitalize()} (Skin{skin_id}) — Vanilla Test",
+						"Author": "Neve",
+						"Version": "1.0.0",
+						"Description": f"Isolated test package for {champ} (Skin{skin_id}).",
+						"License": "CC-BY-NC-SA-4.0",
+						"Tags": ["Vanilla", "Restoration"],
+						"Categories": ["Vanilla", "Restoration"],
 					}
-					config_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
-					(project_dir / ".modignore").write_text("*.tmp\n*.bak\n.git*\nThumbs.db\n", encoding="utf-8")
+					info_json_bytes = json.dumps(metadata, indent=2, ensure_ascii=False).encode("utf-8")
 
 					readme_md = f"""### 🧪 Auditor Package
 > Isolated test package for **{champ.capitalize()} (Skin{skin_id})**.
 
 Compiled via **[Vanilla True Builder](https://github.com/gsmeven/vanilla-true-builder)** by **[Neve](https://github.com/gsmeven)**.
 """
-					(project_dir / "README.md").write_text(readme_md, encoding="utf-8")
-
 					license_text = """Copyright (C) 2026 Neve — Vanilla True Builder
 
 Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
@@ -2256,26 +2238,41 @@ Permissions & Conditions:
 • Attribution (BY): Credit the author (Neve) and link to the upstream repository.
 • Non-Commercial (NC): Commercial use, monetization, paywalls, or resale are strictly prohibited.
 • Share-Alike (SA): Any modifications, updates, or derivative builds must inherit this exact license.
-	
+
 Disclaimer:
 Provided "AS IS", without warranties of any kind. Unofficial community project;
 League of Legends and all related game assets belong to Riot Games, Inc.
 """
-					(project_dir / "LICENSE").write_text(license_text, encoding="utf-8")
+					preview_img = None
+					search_dirs = [WORKSPACE_ROOT, TOOLS_DIR]
+					if hasattr(sys, "_MEIPASS"):
+						search_dirs.insert(0, Path(getattr(sys, "_MEIPASS")))
 
-					cmd_pack = [
-						str(league_mod), "pack",
-						"-c", str(config_path),
-						"-f", pkg_name,
-						"-o", str(WORKSPACE_ROOT),
-						"--format", "modpkg",
-					]
-					res_pack = run_silent_cmd(cmd_pack)
-					if res_pack.returncode != 0:
-						err_detail = res_pack.stderr or res_pack.stdout or "Packaging failure."
-						raise RuntimeError(f"league-mod pack failed:\n{err_detail}")
+					for s_dir in search_dirs:
+						for img_name in ("preview.png", "preview.jpg", "banner.png", "image.png", "icon.png"):
+							cand = s_dir / img_name
+							if cand.is_file():
+								preview_img = cand
+								break
+						if preview_img:
+							break
 
-					output_file_name = f"{pkg_name}.modpkg"
+					with zipfile.ZipFile(fantome_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+						archive.writestr("META/info.json", info_json_bytes)
+						archive.writestr("META/README.md", readme_md.encode("utf-8"))
+						archive.writestr("META/LICENSE", license_text.encode("utf-8"))
+
+						if preview_img:
+							archive.write(preview_img, "META/image.png")
+							archive.write(preview_img, "META/icon.png")
+
+						for file_path, arcname in archive_files:
+							archive.write(file_path, arcname)
+
+						for skn_bytes, arcname in patched_skn_entries:
+							archive.writestr(arcname, skn_bytes)
+
+					output_file_name = f"{pkg_name}.fantome"
 
 					def on_success(fn=output_file_name, cnt=compiled_count):
 						self._set_ui_busy(False)
@@ -2301,7 +2298,6 @@ League of Legends and all related game assets belong to Riot Games, Inc.
 				self.root.after(0, on_error)
 
 		threading.Thread(target=worker, daemon=True).start()
-
 
 if __name__ == "__main__":
 	tk_root = tk.Tk()

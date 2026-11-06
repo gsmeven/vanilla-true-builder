@@ -51,7 +51,7 @@ Operating on a zero-asset doctrine, VTB restores a complete vanilla state withou
 3. **Launch:**  
    Double-click `VanillaTrueBuilder.exe`. *(The app automatically checks for updates and silently hot-swaps itself in seconds whenever a new version is released).*
 4. **Build your restoration mod:**  
-   Choose your desired package format (`.modpkg` recommended or `.fantome` legacy) and press **`BUILD PACKAGE`**.
+   Choose your desired package format (`.modpkg` recommended) and press **`BUILD PACKAGE`**.
 5. **Install into League of Legends:**  
    Click **`📁 OPEN BUILD FOLDER`**, drag `VanillaTrueMod.modpkg` (or `.fantome`) into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it! *(With `.modpkg`, you can toggle individual restoration layers directly inside LTK Manager).*
 
@@ -65,7 +65,7 @@ If any skin has visual issues, you can curate it in under 2 minutes with AI assi
 5. When the AI determines the required fix:
     * Right-click the requested row to **`Copy payload`** and send it to the AI.
     * Double-click the row to open the override file, paste the AI-generated template, and save.
-    * *(Optional)* Click **`TEST`** in the Auditor to compile and test an isolated `.modpkg` package in-game.
+    * *(Optional)* Click **`TEST`** in the Auditor to compile and test an isolated `.fantome` package in-game.
 6. Return to the main app and click **`BUILD PACKAGE`** again. It rebuilds only that champion with the fix in seconds, reusing the cache for the rest!
 
 ### 🎚️ Recommended LTK Manager Setup
@@ -274,7 +274,7 @@ A suite for skin analysis and instant curation (AI assist):
 * **Variant Inheritance:** Scans raw binary structures via FNV-1a hash matching to resolve parent skin IDs without full decompile overhead.
 * **Audit Report:** One-click **`COPY REPORT`** exports full champion family diagnostics directly to your clipboard for instant AI triage.
 * **Payload Generator:** Right-click **`Copy payload`** generates standardized, ready-to-solve prompts with raw resolvers and Base graph parity.
-* **Test Packaging:** Single-click **`TEST`** button compiles, validates, and packages isolated `.modpkg` test archives for instant local testing in LTK Manager.
+* **Test Packaging:** Single-click **`TEST`** button compiles, validates, and packages isolated `.fantome` test archives for instant local testing in LTK Manager.
 
 ### `overrides/` — Curated Templates
 A version-controlled directory of hand-crafted templates for legendary and ultimate skins requiring non-linear state machine handling (e.g., Blackfrost Anivia, True Damage Ekko). Includes pre-configured `# VARIANTS:` and `# SUBMESH_ALIAS:` headers.
