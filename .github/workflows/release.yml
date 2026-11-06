@@ -1,7 +1,7 @@
 name: Build & Publish Release
 run-name: Build & Publish Release #${{ github.run_number }} by @${{ github.actor }}
 
-# Pipeline trigger specifications
+# Pipeline trigger specificationss
 on:
   push:
     branches:
