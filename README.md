@@ -17,7 +17,7 @@
 [📌 Setup](#-setup) •
 [🛠️ For Developers](#️-for-developers-run-from-source) •
 [🧰 Modules](#-modules) •
-[⚙️ Technical Deep Dive](#️-technical-deep-dive) •
+[⚙️ Technical](#️-technical-deep-dive) •
 [🏗️ Architecture](#️-architecture) •
 [🔬 Skin Curation](#-skin-curation) •
 [👥 Ecosystem & Credits](#-author--ecosystem)
