@@ -56,7 +56,7 @@ Operating on a zero-asset doctrine, VTB restores a complete vanilla state withou
    Click **`📁 OPEN BUILD FOLDER`**, drag `VanillaTrueMod.modpkg` (or `.fantome`) into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it!
 
 > [!TIP]
-> When using the **`.modpkg`** format, you don't need to recompile a static mod for every combination of options. Just select the mod inside LTK Manager, open the **Layers** tab, and toggle individual modules on or off before patching—giving you complete flexibility to customize your setup on the fly!
+> Using **`.modpkg`** eliminates the need to compile separate static packages for each configuration. In LTK Manager, select the mod, open the **Layers** tab, and toggle individual modules on or off before patching.
 
 ### 🩺 How to Fix a Problematic Skin
 If any skin has visual issues, you can curate it in under 2 minutes with AI assistance:
