@@ -56,7 +56,7 @@ Operating on a zero-asset doctrine, VTB restores a complete vanilla state withou
    Click **`📁 OPEN BUILD FOLDER`**, drag `VanillaTrueMod.modpkg` (or `.fantome`) into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it!
 
 > [!TIP]
-> **Dynamic Layer Control:** When using the **`.modpkg`** format, you can select the mod in LTK Manager and toggle individual restoration layers (*Champions, Structures, Minions, Wards, Accents, Finishers, Recalls*) on or off on the fly—no rebuilding required!
+> When using the **`.modpkg`** format, you don't need to recompile a static mod for every combination of options. Just select the mod inside LTK Manager, open the **Layers** tab, and toggle individual modules on or off before patching—giving you complete flexibility to customize your setup on the fly!
 
 ### 🩺 How to Fix a Problematic Skin
 If any skin has visual issues, you can curate it in under 2 minutes with AI assistance:
