@@ -3,13 +3,13 @@
 # Vanilla True Builder
 
 **The ultimate canonical Vanilla mod builder for [League of Legends](https://www.leagueoflegends.com) & [LTK Manager](https://github.com/LeagueToolkit).**  
-*Build a pure, zero-bloat Vanilla mod `.fantome` in seconds.*
+*Build a pure, zero-bloat Vanilla mod (`.modpkg` / `.fantome`) in seconds.*
 
 [![Release](https://img.shields.io/github/v/release/gsmeven/vanilla-true-builder?style=for-the-badge&logo=github&color=0ac8b9&logoColor=white)](https://github.com/gsmeven/vanilla-true-builder/releases)
 [![CI/CD Tools](https://img.shields.io/badge/CI%2FCD-vtb--ltk--tools-c8aa6e?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/gsmeven/vtb-ltk-tools)
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20x64-0078d7?style=for-the-badge&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
-[![Package](https://img.shields.io/badge/Output-.fantome-785a28?style=for-the-badge&logo=zip&logoColor=white)](https://github.com/LeagueToolkit)
+[![Package](https://img.shields.io/badge/Output-.modpkg%20%7C%20.fantome-785a28?style=for-the-badge&logo=zip&logoColor=white)](https://github.com/LeagueToolkit)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-6F42C1.svg?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/gsmeven)
 
@@ -17,7 +17,7 @@
 [📌 Setup](#-setup) •
 [🛠️ For Developers](#️-for-developers-run-from-source) •
 [🧰 Modules](#-modules) •
-[⚙️ Technical Core](#️-technical-deep-dive) •
+[⚙️ Technical Deep Dive](#️-technical-deep-dive) •
 [🏗️ Architecture](#️-architecture) •
 [🔬 Skin Curation](#-skin-curation) •
 [👥 Ecosystem & Credits](#-author--ecosystem)
@@ -28,18 +28,18 @@
 
 ## 📖 Overview
 
-**Vanilla True Builder (VTB)** is an automated visual restoration engine built specifically for **[LTK Manager](https://github.com/LeagueToolkit)**. With a single click, it compiles a tailored, zero-bloat restoration package (`.fantome`) directly from your local game installation.
+**Vanilla True Builder (VTB)** is an automated visual restoration engine built specifically for **[LTK Manager](https://github.com/LeagueToolkit)**. With a single click, it compiles a tailored, zero-bloat restoration package (`.modpkg` or `.fantome`) directly from your local game installation.
 
-Traditional custom mods rely on placeholder textures, foreign dummy meshes, or destructive overrides that trigger DirectX crashes and hitbox desynchronization. Instead, VTB operates natively on official Riot archives, leveraging proven reverse-engineering toolchains ([ritobin](https://github.com/LeagueToolkit/ritobin-tools) & [wadtools](https://github.com/LeagueToolkit/wadtools)) to patch game data directly at the engine level.
+Traditional custom mods rely on placeholder textures, foreign dummy meshes, or destructive overrides that trigger DirectX crashes and hitbox desynchronization. Instead, VTB operates natively on official Riot archives, leveraging proven reverse-engineering toolchains ([ritobin](https://github.com/LeagueToolkit/ritobin-tools), [wadtools](https://github.com/LeagueToolkit/wadtools), and [league-mod](https://github.com/LeagueToolkit/league-mod)) to patch game data directly at the engine level.
 
 Operating on a zero-asset doctrine, VTB restores a complete vanilla state without bundling foreign files. Across all supported modules, it rebinds champion skins, vision wards, and map assets back to local Base definitions, while routing structures and minions strictly to their canonical factions. Ground decals, props, nexus finishers, and special recall overlays are neutralized at the engine property level. If graphics driver contracts demand valid assets to suppress clutter safely, VTB synthesizes hardware-compliant bytecode in memory on the fly. This ensures authentic visual clarity with zero file bloat, uncompromised hitbox parity, and a native experience.
 
 > [!IMPORTANT]
-> * **First Build:** Takes a few minutes initially to process and sanitize all needed game WADs in parallel.
+> * **Instant Build:** Compiles in seconds via native LTK Game Data Declarations (`game_data.yaml` + `!ref`) and binary Table of Contents (TOC) inspection, bypassing monolithic WAD extractions.
 > * **Temp Buffer:** Decompresses into an isolated `%TEMP%` directory without touching game files, pruned automatically upon completion.
-> * **LTK Storage:** Initial patching takes a few minutes and needs **~21 GB of disk space**, which is an inherent behavior of LTK's virtual filesystem when staging mods across several WADs.
-> * **Hash Cache:** Validated via `WAD_HASH:SCRIPT_HASH`. Subsequent builds are near-instant, keeping a compact local cache (**~1 GB**).
-> * **Patch-Resilient:** On launch, checks your mod against live game files and alerts you if an update is needed. Build again to re-sync altered files in seconds.
+> * **LTK Storage:** Staging mods across 170 champion archives takes disk space in LTK's overlay cache (~21 GB with Champions active, or ~3 GB if only Map/Structures/Minions layers are enabled).
+> * **Hash Cache:** Validated via `WAD_HASH:SCRIPT_HASH`. Re-compilations are near-instant, keeping a compact local cache.
+> * **Patch-Resilient:** Game Data Declarations use runtime `!ref` bindings that automatically inherit changes across new game patches without breaking.
 > * **Skin Curation:** Over **95% of skins revert automatically**. Edge cases with unique submeshes or animations resolve in under 2 minutes via **`SKIN FIX`** and reasoning AI.
 
 ## 📌 Setup
@@ -51,9 +51,9 @@ Operating on a zero-asset doctrine, VTB restores a complete vanilla state withou
 3. **Launch:**  
    Double-click `VanillaTrueBuilder.exe`. *(The app automatically checks for updates and silently hot-swaps itself in seconds whenever a new version is released).*
 4. **Build your restoration mod:**  
-   Select the modules you wish to normalize (or click **Select All**) and press **`BUILD PACKAGE (.FANTOME)`**.
+   Choose your desired package format (`.modpkg` recommended or `.fantome` legacy) and press **`BUILD PACKAGE`**.
 5. **Install into League of Legends:**  
-   Click **`📁 OPEN FANTOME FOLDER`**, drag `VanillaTrueMod.fantome` into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it!
+   Click **`📁 OPEN BUILD FOLDER`**, drag `VanillaTrueMod.modpkg` (or `.fantome`) into [**LTK Manager**](https://github.com/LeagueToolkit) and enable it! *(With `.modpkg`, you can toggle individual restoration layers directly inside LTK Manager).*
 
 ### 🩺 How to Fix a Problematic Skin
 If any skin has visual issues, you can curate it in under 2 minutes with AI assistance:
@@ -65,7 +65,7 @@ If any skin has visual issues, you can curate it in under 2 minutes with AI assi
 5. When the AI determines the required fix:
     * Right-click the requested row to **`Copy payload`** and send it to the AI.
     * Double-click the row to open the override file, paste the AI-generated template, and save.
-    * *(Optional)* Click **`TEST`** in the Auditor to compile and test an isolated package in-game.
+    * *(Optional)* Click **`TEST`** in the Auditor to compile and test an isolated `.modpkg` package in-game.
 6. Return to the main app and click **`BUILD PACKAGE`** again. It rebuilds only that champion with the fix in seconds, reusing the cache for the rest!
 
 ### 🎚️ Recommended LTK Manager Setup
@@ -190,8 +190,8 @@ RAW_TRANSPARENT_TEX_BYTES = (
 > [!NOTE]
 > This asset is used only for auto-instantiated Clash banners/trophies and esports stage banners in `Global.wad.client`. Because the client automatically renders these assets if equipped by any player in the match, suppressing them safely requires a valid texture path. All other clutter is handled natively without external assets via shader alpha discard and particle severing (Item 2).
 
-### 5. Cache Validator (`_is_cache_valid`)
-VTB avoids redundant re-compilation across League patches via a dual-signature validation layer:
+### 5. Binary Table of Contents (TOC) Inspection & Cache Validator
+Instead of extracting monolithic WAD archives to disk to inspect existing skins, VTB reads the native WAD3 binary header and Table of Contents (TOC) directly in memory (~0.5ms per champion) using a pure-Python XXHash64 implementation. It discovers exact installed skins dynamically without disk decompression or arbitrary index ranges.
 
 $$\text{Cache Validity} = (\text{WAD\_HASH} = \text{Current WAD}) \land (\text{SCRIPT\_HASH} = \text{Engine Fingerprint})$$
 
@@ -199,10 +199,11 @@ $$\text{Cache Validity} = (\text{WAD\_HASH} = \text{Current WAD}) \land (\text{S
 * **Pipeline Engine Fingerprint:** Truncated SHA-256 derived from `APP_VERSION`. If the VTB pipeline or submesh contract engine code updates, obsolete caches invalidate automatically.
 * **Master Flat Storage:** Cached outputs are stored in flat directories (`cache/<wad_name>/.hash`), allowing unchanged archives to bypass extraction, decompilation, sanitization, and instant recompilation.
 
-### 6. Native Toolchains (`wadtools` & `ritobin-tools`)
-VTB interfaces directly with LeagueToolkit's bleeding-edge Rust ecosystem (`crates/ltk_wad` and `crates/ltk_ritobin`), eliminating legacy compatibility wrappers and runtime architecture probing overhead:
+### 6. Native Toolchains (`wadtools`, `ritobin`, `league-mod`)
+VTB interfaces directly with LeagueToolkit's bleeding-edge Rust ecosystem (`crates/ltk_wad`, `crates/ltk_ritobin`, and `league-mod`), eliminating legacy compatibility wrappers and runtime architecture probing overhead:
 * **Selective WAD Extraction (`wadtools`):** Operates directly on Riot's Zstandard-compressed `.wad.client` archives. Leverages targeted regex filters (`-x`) to extract exclusively required skin `.bin` properties and `.skn` geometry files in seconds, bypassing gigabytes of unused audio and animation streams.
 * **Property Tree Compilation (`ritobin-tools`):** Utilizes native verb-based CLI commands (`convert <in> -o <out> -t rito/bin -H <hashes>`), guaranteeing loss-free serialization and full compatibility with Riot's modern 64-bit hash types (`hash[u64]`, `xxh3`) and dynamic property trees.
+* **Declarative Packaging (`league-mod`):** Packages multi-layered LTK mod projects (`.modpkg`) directly into distribution-ready packages carrying runtime Game Data Declarations.
 
 ### 7. Multi-Core Processing (`MAX_PARALLEL_WAD_JOBS`)
 Processing over 160 champions and monolithic map archives sequentially would take hours. VTB leverages a multi-process architecture:
@@ -255,14 +256,14 @@ flowchart TD
     C3 --> E
 
     E --> F{"<b>✍️ Active Scope Filter</b><br/>GUI Module Toggles"}
-    F --> G(["<b>📦️ Standalone .fantome Package</b><br/>Zero-Bloat Distribution Archive"])
+    F --> G(["<b>📦️ Output Package (.modpkg / .fantome)</b><br/>Zero-Bloat Distribution Archive"])
 ```
 
 ### `main.py` — Production Pipeline
-* **Master User Interface (GUI):** The central visual suite and master command center driving the entire restoration lifecycle—providing intuitive module toggles, cache state diagnostics, live console telemetry, and one-click dispatch to the Auditor (`SKIN FIX`). Features a custom frameless window with native Windows API interop (`ctypes.windll.user32`) for window snapping, borderless dragging, and minimize/maximize logic.
+* **Master User Interface (GUI):** The central visual suite and master command center driving the entire restoration lifecycle—providing package format selection (`.modpkg` or `.fantome`), modular layer controls, cache state diagnostics, live console telemetry, and one-click dispatch to the Auditor (`SKIN FIX`). Features a custom frameless window with native Windows API interop (`ctypes.windll.user32`) for window snapping, borderless dragging, and minimize/maximize logic.
 * **Multiprocessing Engine:** Parallel extraction and decompilation leveraging dynamic process pools scaled to system CPU limits (`MAX_PARALLEL_WAD_JOBS`) within isolated system `%TEMP%` scratch workspaces.
-* **Native Toolchains:** Direct, zero-overhead CLI integration with LeagueToolkit's Rust binaries (`wadtools` & `ritobin-tools`), utilizing selective regex archive extraction and verb-based binary compilation.
-* **Module Scoping (`options`):** Granular restoration control via GUI checkboxes or CLI flags (`--no-*`), paired with selective post-build target filtering (`_is_mod_target_file`) to package strictly active modules into the `.fantome` container.
+* **Native Toolchains:** Direct, zero-overhead CLI integration with LeagueToolkit's Rust binaries (`wadtools`, `ritobin-tools`, and `league-mod`), utilizing selective regex archive extraction and verb-based binary compilation.
+* **Module Scoping (`options`):** Granular restoration control via GUI checkboxes or CLI flags (`--no-*`), paired with selective post-build target filtering (`_is_mod_target_file`) to package strictly active modules into the target container.
 * **Dynamic Progress Scheduling:** Multi-phase weighted progress calculation across Map11, UI/Global, Champion batches, and packaging stages, dynamically adapting percentage spans to active modules.
 
 ### `auditor.py` — Skin Curation & Test
@@ -273,7 +274,7 @@ A suite for skin analysis and instant curation (AI assist):
 * **Variant Inheritance:** Scans raw binary structures via FNV-1a hash matching to resolve parent skin IDs without full decompile overhead.
 * **Audit Report:** One-click **`COPY REPORT`** exports full champion family diagnostics directly to your clipboard for instant AI triage.
 * **Payload Generator:** Right-click **`Copy payload`** generates standardized, ready-to-solve prompts with raw resolvers and Base graph parity.
-* **Test Packaging:** Single-click **`TEST`** button compiles, validates, and packages isolated `.fantome` test archives for instant local testing in LTK Manager.
+* **Test Packaging:** Single-click **`TEST`** button compiles, validates, and packages isolated `.modpkg` test archives for instant local testing in LTK Manager.
 
 ### `overrides/` — Curated Templates
 A version-controlled directory of hand-crafted templates for legendary and ultimate skins requiring non-linear state machine handling (e.g., Blackfrost Anivia, True Damage Ekko). Includes pre-configured `# VARIANTS:` and `# SUBMESH_ALIAS:` headers.
@@ -298,7 +299,7 @@ The AI receives the exact, pristine baseline data it needs to write the fix, str
 <details>
 <summary><b>Click to expand the 10 Laws for Curation</b></summary>
 
-1. **LAW 1 (Literal RAM Bridge):** Copy 1:1 the `linked: list[string]` block exactly as declared in `Skin0` of the payload. For satellites, ensure both the satellite and parent champion `.bin` files are linked so cross-entity base particles resolve. Never invent paths.
+1. **LAW 1 (Literal RAM Bridge):** Copy 1:1 the `linked: list[string]` block exactly as declared in `Skin0` of the payload. For satellites, ensure both the satellite and parent champion `.bin` files are linked so cross-entity base particles resolve. Never invent paths like `Skins/Skin0.bin`.
 2. **LAW 2 (Rig & Animation Graph):** Clone `skeleton`, `simpleSkin`, textures, and scale from `Skin0`. Point `animationGraphData` to `"Characters/<Entity>/Animations/Skin0"`.
 3. **LAW 3 (CAC Reset):** Always inject `mContextualActionData: link = "Characters/<Champion>/CAC/<Champion>_Base"` to sever dynamic sub-form state machines at the root.
 4. **LAW 4 (UI Integrity):** Clone from `Skin0` the blocks `loadscreen`, `iconCircle`, `iconSquare`, and `healthBarData` (`unitHealthBarStyle: u8 = 12`).
@@ -323,8 +324,28 @@ The AI receives the exact, pristine baseline data it needs to write the fix, str
 
 ## 📦 Packaging & LTK Manager
 
-The output package is assembled directly as a standard, distribution-ready `.fantome` archive tailored for [LTK Manager](https://github.com/LeagueToolkit):
+The output package is assembled directly as a modern `.modpkg` project (or legacy `.fantome` archive) tailored for [LTK Manager](https://github.com/LeagueToolkit):
 
+### Native `.modpkg` Project Structure (Recommended)
+```
+VanillaTrueMod.modpkg
+├── _meta_/
+│   ├── manifest.json   # Mod metadata (v1.8.4), authors, layer definitions & tags
+│   ├── README.md       # Overview, restoration checklist & dedications
+│   ├── LICENSE         # Official CC BY-NC-SA 4.0 License
+│   └── thumbnail       # Package artwork
+└── content/
+    ├── base/           # Core framework (priority 0) & transparent safety textures
+    ├── champions/      # Declarative game_data.yaml (!ref) + in-place .skn aliases
+    ├── structures/     # Declarative game_data.yaml (Order/Chaos faction turrets & rubble)
+    ├── minions/        # Declarative game_data.yaml (Order/Chaos minion silhouettes)
+    ├── wards/          # Declarative game_data.yaml (Default vision & trinkets)
+    ├── accents/        # Map11 & Global clutter, ads & trophy neutralization
+    ├── finishers/      # Declarative game_data.yaml (Nexus cinematic neutralization)
+    └── recalls/        # Canonical teleport-home recall VFX
+```
+
+### Legacy `.fantome` Archive Structure
 ```
 VanillaTrueMod.fantome
 ├── META/
@@ -340,20 +361,24 @@ VanillaTrueMod.fantome
     └── <champion>.wad.client/
 ```
 
-* **Details Tab:** Clean, concise description populated from `info.json` without broken markdown tags.
+* **Modular Layers (`.modpkg`):** Toggle individual modules (Champions, Structures, Minions, Wards, Accents, Finishers, Recalls) on the fly directly inside LTK Manager with zero rebuilding.
+* **Details Tab:** Clean, concise description populated from manifest metadata without broken markdown tags.
 * **Readme Tab:** Displays the full overview, dynamic restoration status, and ecosystem dedications.
-* **Licenses Tab:** Compatible with LTK's license viewer via standard `META/LICENSE`.
+* **Licenses Tab:** Compatible with LTK's license viewer via standard `LICENSE`.
 
 ## ⌨️ Command Line Interface (CLI)
 
 For headless builds, server setups, or continuous integration:
 
 ```powershell
-# Standard headless build (all modules enabled)
+# Standard headless build (all modules enabled, native .modpkg format)
 python main.py
 
 # Custom scoped build (e.g. skip finishers and recalls)
 python main.py --no-finishers --no-recalls
+
+# Build in legacy .fantome format
+python main.py --format fantome
 
 # Force update CommunityDragon hash tables
 python main.py --update-hashes
@@ -368,7 +393,8 @@ python main.py --dry-run
 | :--- | :---: | :--- |
 | `--gui` | `flag` | Force launch the Hextech graphical interface. |
 | `--auditor` | `flag` | Launch the Champion Auditor & Curation Studio. |
-| `--dry-run` | `flag` | Run simulation without modifying cache or writing `.fantome`. |
+| `--format <type>` | `choice` | Packaging format (`modpkg` or `fantome`). |
+| `--dry-run` | `flag` | Run simulation without modifying cache or writing packages. |
 | `--update-hashes` | `flag` | Force re-download and merge of CommunityDragon hash containers. |
 | `--workspace <dir>` | `path` | Explicitly specify workspace root folder. |
 | `--map-wad <path>` | `path` | Explicit path to `Map11.wad.client`. |

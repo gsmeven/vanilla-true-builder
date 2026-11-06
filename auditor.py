@@ -38,6 +38,7 @@ AI_CONTEXT_FILE = WORKSPACE_ROOT / "ai_context.md"
 TOOLS_DIR = WORKSPACE_ROOT / "tools"
 WADTOOLS = TOOLS_DIR / "wadtools.exe" if (TOOLS_DIR / "wadtools.exe").is_file() else WORKSPACE_ROOT / "wadtools.exe"
 RITOBIN = TOOLS_DIR / "ritobin.exe" if (TOOLS_DIR / "ritobin.exe").is_file() else WORKSPACE_ROOT / "ritobin.exe"
+LEAGUEMOD = TOOLS_DIR / "league-mod.exe" if (TOOLS_DIR / "league-mod.exe").is_file() else WORKSPACE_ROOT / "league-mod.exe"
 HASHES_DIR = TOOLS_DIR / "hashes"
 HASHES_GAME = HASHES_DIR / "hashes.game.txt"
 SKINS_METADATA_FILE = HASHES_DIR / "skins.json"
@@ -240,6 +241,7 @@ def ensure_toolkit_binaries(
 
 	wadtools_path = tools_dir / "wadtools.exe"
 	ritobin_path = tools_dir / "ritobin.exe"
+	leaguemod_path = tools_dir / "league-mod.exe"
 
 	zip_dest = tools_dir / "tools.zip"
 	etag_path = tools_dir / "tools.zip.etag"
@@ -253,14 +255,14 @@ def ensure_toolkit_binaries(
 
 		updated = _download_conditional(LTK_TOOLS_ZIP_URL, zip_dest, etag_path, timeout=35)
 
-		if updated or not wadtools_path.is_file() or not ritobin_path.is_file():
+		if updated or not wadtools_path.is_file() or not ritobin_path.is_file() or not leaguemod_path.is_file():
 			if zip_dest.is_file():
 				if progress_callback:
 					progress_callback("Extracting updated LTK binaries...")
 				with zipfile.ZipFile(zip_dest, "r") as archive:
 					for member in archive.infolist():
 						filename = Path(member.filename).name
-						if filename.lower() in ("wadtools.exe", "ritobin.exe"):
+						if filename.lower() in ("wadtools.exe", "ritobin.exe", "league-mod.exe"):
 							target_file = tools_dir / filename
 							with archive.open(member) as source, open(target_file, "wb") as target:
 								shutil.copyfileobj(source, target)
@@ -470,12 +472,10 @@ def extract_parent_skin_id_from_raw_bin(bin_path: Path) -> str | None:
 	try:
 		raw = bin_path.read_bytes()
 
-		# 1. Fast detection: custom skeleton path (normalizes "02" -> "2")
 		m_skl = re.search(rb'(?i)[/\\]Skins[/\\]Skin(\d+)[/\\][^/\\]+?\.skl', raw)
 		if m_skl:
 			return str(int(m_skl.group(1).decode("ascii")))
 
-		# 2. Fast detection: binary property hash lookup for chroma parent id
 		for h_bytes in _PARENT_PROP_HASHES:
 			idx = 0
 			while True:
@@ -484,7 +484,6 @@ def extract_parent_skin_id_from_raw_bin(bin_path: Path) -> str | None:
 					break
 				if pos + 9 <= len(raw):
 					val_type = raw[pos + 4]
-					# Riot PROP types: 7 = u32, 6 = i32, 5 = u16, 3 = u8
 					if val_type in (6, 7):
 						val = struct.unpack_from("<I", raw, pos + 5)[0]
 						if 0 < val < 1000:
@@ -499,7 +498,6 @@ def extract_parent_skin_id_from_raw_bin(bin_path: Path) -> str | None:
 							return str(val)
 				idx = pos + 4
 
-		# 3. Fast detection: text-based fallback
 		m_txt = re.search(rb'(?i)(?:chromaParentSkinId|parentSkinId)\s*:\s*(?:u32|int)\s*=\s*(\d+)', raw)
 		if m_txt:
 			return str(int(m_txt.group(1).decode("ascii")))
@@ -1438,7 +1436,7 @@ class ChampionAuditorApp:
 		add_step("2. Auditing", "Select the problematic champion skin, then click 'AUDIT' button, wait for the audit to finish.")
 		add_step("3. Reporting", "Click 'COPY REPORT' below and paste into AI Chat, then wait AI tell you which row requires a payload.")
 		add_step("4. Fixing", "Right-click only the row(s) requested by the AI to 'Copy payload', double-click it to paste the fix and save.")
-		add_step("5. Finishing", "Build your .fantome package with champions module again.", is_last=True)
+		add_step("5. Finishing", "Build your .modpkg package with champions module again.", is_last=True)
 
 		guide_win.update_idletasks()
 		req_w = max(500, guide_win.winfo_reqwidth())
@@ -1520,7 +1518,6 @@ class ChampionAuditorApp:
 		with tempfile.TemporaryDirectory(prefix=f"audit_{champ_name}_") as tmp_d_str:
 			tmp_dir = Path(tmp_d_str)
 
-			# Extract Skin Binaries AND 3D Mesh (.skn) files without restrictive -f bin filter
 			extract_regex = rf"(?i)(skins/skin\d+\.bin$|skins/(?:base|skin0|skin{skin_filter})/.*\.skn$)"
 			cmd_extract = [str(WADTOOLS), "extract", "-i", str(wad_path), "-o", str(tmp_dir), "--overwrite", "-x", extract_regex]
 			hashes_game = HASHES_GAME if HASHES_GAME.is_file() else None
@@ -1535,7 +1532,6 @@ class ChampionAuditorApp:
 			if not any(re.search(rf"[/\\]skin{skin_filter}\.bin$", p.as_posix(), re.IGNORECASE) for p in bin_files):
 				raise ValueError(f"Skin ID {skin_filter} does not exist in {champ_name}.wad.client!")
 
-			# Surgical decompile: only decompile Skin0 and target skin across entities
 			target_bins = [
 				b for b in bin_files
 				if re.search(rf"[/\\]skin(?:0|{skin_filter})\.bin$", b.as_posix(), re.IGNORECASE)
@@ -1547,7 +1543,6 @@ class ChampionAuditorApp:
 			with ThreadPoolExecutor(max_workers=MAX_PARALLEL_JOBS) as executor:
 				list(executor.map(decompile_single_bin_job, decompile_jobs))
 
-			# LOGIC TO MAP ALL ENTITIES
 			entities_map: dict[str, dict[str, dict]] = {}
 			for txt in tmp_dir.rglob("*.bin.txt"):
 				rel = txt.relative_to(tmp_dir).as_posix().lower()
@@ -1589,7 +1584,6 @@ class ChampionAuditorApp:
 			main_entity_skins = entities_map.get(main_entity_name, {})
 			base_main = main_entity_skins.get("0")
 
-			# Read and compare Base and Target Skin SKN meshes
 			skn_files = list(tmp_dir.rglob("*.skn"))
 			base_submeshes = []
 			target_submeshes = []
@@ -1611,7 +1605,6 @@ class ChampionAuditorApp:
 					submesh_divergence = diff
 					suggested_alias = (base_submeshes[0], diff[0])
 
-			# Fast chroma discovery scanning raw champion bins without ritobin overhead
 			discovered_chromas: list[str] = []
 			for b in bin_files:
 				rel = b.relative_to(tmp_dir).as_posix().lower()
@@ -2065,10 +2058,17 @@ class ChampionAuditorApp:
 				ensure_toolkit_binaries(TOOLS_DIR)
 				ensure_ritobin_hashes(HASHES_DIR)
 
+				league_mod = LEAGUEMOD if LEAGUEMOD.is_file() else TOOLS_DIR / "league-mod.exe"
+				if not league_mod.is_file():
+					league_mod = WORKSPACE_ROOT / "league-mod.exe"
+				if not league_mod.is_file():
+					raise FileNotFoundError(f"league-mod.exe not found at {league_mod}")
+
 				with tempfile.TemporaryDirectory(prefix=f"vanilla_restore_{champ}_") as tmp_d_str:
 					temp_dir = Path(tmp_d_str)
+					project_dir = temp_dir / "test_project"
+					content_base = project_dir / "content" / "base" / wad_target.name
 
-					# Discover Chroma Variants ONLY for Selected Champion (Parity with main.py)
 					char_name = champ.lower()
 					champ_tpl_dir = OVERRIDES_DIR / char_name / "skins"
 					chroma_inheritance_map: dict[str, Path] = {}
@@ -2098,7 +2098,6 @@ class ChampionAuditorApp:
 						if f"skin{skin_id}.bin.txt".lower() in tpl_src.name.lower():
 							target_skin_ids.add(cid)
 
-					# Extract WAD (Only Skin0, Targets and Base SKN)
 					all_id_regex = "|".join(["0"] + sorted(list(target_skin_ids), key=int))
 					extract_regex = rf"(?i)(skins/skin({all_id_regex})\.bin$|skins/base/.*\.skn$)"
 					cmd_extract = [str(WADTOOLS), "extract", "-i", str(wad_target), "-o", str(temp_dir), "--overwrite", "-x", extract_regex]
@@ -2106,7 +2105,6 @@ class ChampionAuditorApp:
 						cmd_extract += ["-H", str(HASHES_GAME)]
 					run_silent_cmd(cmd_extract)
 
-					# Decompile base Skin0
 					base_skin0_files = [
 						p for p in temp_dir.rglob("*.bin")
 						if p.stem.lower() == "skin0" and not any(tag in p.as_posix().lower() for tag in ("tft", "jade_"))
@@ -2114,10 +2112,9 @@ class ChampionAuditorApp:
 					with ThreadPoolExecutor(max_workers=MAX_PARALLEL_JOBS) as executor:
 						list(executor.map(decompile_bin_job, base_skin0_files))
 
-					entries_to_pack: list[tuple[Path, str]] = []
+					compiled_count = 0
 					submesh_alias_tasks: list[tuple[str, str, str, str]] = []
 
-					# Processing with Real Inheritance (Parity with main.py)
 					matching_bins = [
 						p for p in temp_dir.rglob("*.bin")
 						if re.search(r'\d+', p.stem)
@@ -2192,12 +2189,14 @@ class ChampionAuditorApp:
 
 						recompiled_bin, rec_err = recompile_txt_job(out_txt)
 						if recompiled_bin and recompiled_bin.is_file():
-							rel_bin_path = recompiled_bin.relative_to(temp_dir).as_posix().lower()
-							entries_to_pack.append((recompiled_bin, f"WAD/{wad_target.name}/{rel_bin_path}"))
+							rel_bin_path = recompiled_bin.relative_to(temp_dir)
+							dest_bin = content_base / rel_bin_path
+							dest_bin.parent.mkdir(parents=True, exist_ok=True)
+							shutil.copy2(recompiled_bin, dest_bin)
+							compiled_count += 1
 						else:
 							raise RuntimeError(f"Ritobin failed to recompile {out_txt.name}:\n{rec_err}")
 
-					# Process In-Place Submesh Patch (Only for parent templates)
 					if submesh_alias_tasks:
 						for ent_name, skin_sfx, old_sub, new_sub in submesh_alias_tasks:
 							base_skn_list = [p for p in temp_dir.rglob("*.skn") if "base" in p.as_posix().lower()]
@@ -2212,36 +2211,43 @@ class ChampionAuditorApp:
 							patched_skn_bytes = patch_skn_submesh_inplace(raw_bytes, old_sub, new_sub)
 
 							patched_name = f"{ent_name.capitalize()}_Skin{skin_sfx}.skn"
-							patched_skn_file = temp_dir / patched_name
-							patched_skn_file.write_bytes(patched_skn_bytes)
+							dest_skn = content_base / "assets" / "characters" / ent_name / "skins" / "base" / patched_name
+							dest_skn.parent.mkdir(parents=True, exist_ok=True)
+							dest_skn.write_bytes(patched_skn_bytes)
+							compiled_count += 1
 
-							clean_rel_path = f"assets/characters/{ent_name}/skins/base/{patched_name}".lower()
-							skn_arcname = f"WAD/{wad_target.name}/{clean_rel_path}"
-							entries_to_pack.append((patched_skn_file, skn_arcname))
-
-					if not entries_to_pack:
+					if compiled_count == 0:
 						raise RuntimeError(f"No files were compiled or packed for {champ} (Skin{skin_id})!")
 
-					# 6. Package into .fantome Archive with Strict Lowercase Paths
-					fantome_filename = f"VanillaTrue_{champ.capitalize()}_Skin{skin_id}.fantome"
-					output_fantome = WORKSPACE_ROOT / fantome_filename
-
-					metadata = {
-						"Name": f"{champ} (Skin{skin_id}) — Vanilla",
-						"Author": "Neve",
-						"Version": APP_VERSION,
-						"Description": f"Vanilla restored for: {champ} (Skin{skin_id}).",
-						"License": "CC-BY-NC-SA-4.0",
+					pkg_name = f"VanillaTrue_{champ.capitalize()}_Skin{skin_id}"
+					config_path = project_dir / "mod.config.json"
+					manifest = {
+						"name": f"vanilla-test-{champ.lower()}-skin{skin_id}",
+						"display_name": f"{champ.capitalize()} (Skin{skin_id}) — Vanilla Test",
+						"version": "1.0.0",
+						"description": f"Isolated test package for {champ} (Skin{skin_id}).",
+						"authors": ["Neve"],
+						"license": "CC-BY-NC-SA-4.0",
+						"tags": ["Vanilla","Restoration"],
+						"layers": [
+							{
+								"name": "base",
+								"priority": 0,
+								"description": "Restored champion files"
+							}
+						],
 					}
-					info_json_bytes = json.dumps(metadata, indent=2, ensure_ascii=False).encode("utf-8")
+					config_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+					(project_dir / ".modignore").write_text("*.tmp\n*.bak\n.git*\nThumbs.db\n", encoding="utf-8")
 
 					readme_md = f"""### 🧪 Auditor Package
-> Isolated build for **{champ.capitalize()} (Skin{skin_id})**.
+> Isolated test package for **{champ.capitalize()} (Skin{skin_id})**.
 
-Compiled and packaged via **[Vanilla True Builder](https://github.com/gsmeven/vanilla-true-builder)** by **[Neve](https://github.com/gsmeven)**.
+Compiled via **[Vanilla True Builder](https://github.com/gsmeven/vanilla-true-builder)** by **[Neve](https://github.com/gsmeven)**.
 """
+					(project_dir / "README.md").write_text(readme_md, encoding="utf-8")
 
-					license_text = """Copyright (C) 2026 Neve (https://github.com/gsmeven/vanilla-true-builder)
+					license_text = """Copyright (C) 2026 Neve — Vanilla True Builder
 
 Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
 Full Terms: https://creativecommons.org/licenses/by-nc-sa/4.0/
@@ -2250,34 +2256,36 @@ Permissions & Conditions:
 • Attribution (BY): Credit the author (Neve) and link to the upstream repository.
 • Non-Commercial (NC): Commercial use, monetization, paywalls, or resale are strictly prohibited.
 • Share-Alike (SA): Any modifications, updates, or derivative builds must inherit this exact license.
-
+	
 Disclaimer:
 Provided "AS IS", without warranties of any kind. Unofficial community project;
 League of Legends and all related game assets belong to Riot Games, Inc.
 """
+					(project_dir / "LICENSE").write_text(license_text, encoding="utf-8")
 
-					with zipfile.ZipFile(output_fantome, "w", compression=zipfile.ZIP_DEFLATED) as arc:
-						arc.writestr("META/info.json", info_json_bytes)
-						arc.writestr("META/README.md", readme_md.encode("utf-8"))
-						arc.writestr("META/LICENSE", license_text.encode("utf-8"))
-						for local_p, zip_p in entries_to_pack:
-							parts = zip_p.split("/", 2)
-							if len(parts) == 3 and parts[0] == "WAD":
-								normalized_zip_p = f"WAD/{parts[1]}/{parts[2].lower()}"
-							else:
-								normalized_zip_p = zip_p.lower()
-							arc.write(local_p, normalized_zip_p)
+					cmd_pack = [
+						str(league_mod), "pack",
+						"-c", str(config_path),
+						"-f", pkg_name,
+						"-o", str(WORKSPACE_ROOT),
+						"--format", "modpkg",
+					]
+					res_pack = run_silent_cmd(cmd_pack)
+					if res_pack.returncode != 0:
+						err_detail = res_pack.stderr or res_pack.stdout or "Packaging failure."
+						raise RuntimeError(f"league-mod pack failed:\n{err_detail}")
 
-					def on_success(fn=fantome_filename, cnt=len(entries_to_pack)):
+					output_file_name = f"{pkg_name}.modpkg"
+
+					def on_success(fn=output_file_name, cnt=compiled_count):
 						self._set_ui_busy(False)
 						self.status_var.set("BUILD COMPLETE")
 						self.status_badge.config(fg=self.C_GREEN_SUCCESS)
 						messagebox.showinfo(
 							"Success",
-							f"Build package generated successfully!\n\nFile: {fn}\n",
+							f"Test package generated successfully!\n\nFile: {fn}\n",
 							parent=self.root,
 						)
-
 						self.status_var.set("WAITING ACTION")
 						self.status_badge.config(fg=self.C_CYAN_MAGIC)
 

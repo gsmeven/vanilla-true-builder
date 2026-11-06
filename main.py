@@ -13,6 +13,7 @@ import queue
 import re
 import shutil
 import signal
+import struct
 import subprocess
 import sys
 import tempfile
@@ -35,14 +36,13 @@ except Exception:
 LOG = logging.getLogger("vanilla_builder")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
-APP_VERSION = "v1.8.3"
+APP_VERSION = "v1.8.4"
 GITHUB_REPO_URL = "https://github.com/gsmeven/vanilla-true-builder"
 GITHUB_LATEST_API = "https://api.github.com/repos/gsmeven/vanilla-true-builder/releases/latest"
 
 # ==============================================================================
 # PIPELINE & CACHE CONFIGURATION
 # ==============================================================================
-
 if getattr(sys, "frozen", False):
 	try:
 		_curr_exe = Path(sys.executable).resolve()
@@ -127,7 +127,7 @@ GLOBAL_TRANSPARENT_TEX_REL = "assets/transparent.tex"
 
 
 # ==============================================================================
-# LEAGUE OF LEGENDS ENVIRONMENT DETECTION
+# LEAGUE OF LEGENDS ENVIRONMENT DETECTION & WORKSPACE
 # ==============================================================================
 def detect_league_root() -> Path:
 	default_path = Path(r"C:\Riot Games\League of Legends")
@@ -195,6 +195,7 @@ else:
 	DEFAULT_WORKSPACE_ROOT = Path(__file__).resolve().parent
 
 DEFAULT_TEMP_DIR = Path(tempfile.gettempdir()) / "VanillaTrueTemp"
+DEFAULT_PROJECT_DIR = DEFAULT_TEMP_DIR / "VanillaTrue_Project"
 
 
 def get_temp_workspace() -> Path:
@@ -469,8 +470,12 @@ def _download_and_merge_game_hashes(
 			updated = _download_conditional(url, part_path, etag_path, progress_callback=progress_callback)
 			if updated:
 				any_part_updated = True
-			parts_downloaded.append(part_path)
+			if part_path.is_file() and part_path.stat().st_size > 0:
+				parts_downloaded.append(part_path)
 			part_idx += 1
+		except urllib.error.HTTPError as err:
+			if err.code == 404:
+				break
 		except Exception:
 			break
 
@@ -530,6 +535,7 @@ def ensure_toolkit_binaries(
 
 	wadtools_path = tools_dir / "wadtools.exe"
 	ritobin_path = tools_dir / "ritobin.exe"
+	leaguemod_path = tools_dir / "league-mod.exe"
 
 	zip_dest = tools_dir / "tools.zip"
 	etag_path = tools_dir / "tools.zip.etag"
@@ -543,14 +549,14 @@ def ensure_toolkit_binaries(
 
 		updated = _download_conditional(LTK_TOOLS_ZIP_URL, zip_dest, etag_path, timeout=35)
 
-		if updated or not wadtools_path.is_file() or not ritobin_path.is_file():
+		if updated or not wadtools_path.is_file() or not ritobin_path.is_file() or not leaguemod_path.is_file():
 			if zip_dest.is_file():
 				if progress_callback:
 					progress_callback("Extracting updated LTK binaries...")
 				with zipfile.ZipFile(zip_dest, "r") as archive:
 					for member in archive.infolist():
 						filename = Path(member.filename).name
-						if filename.lower() in ("wadtools.exe", "ritobin.exe"):
+						if filename.lower() in ("wadtools.exe", "ritobin.exe", "league-mod.exe"):
 							target_file = tools_dir / filename
 							with archive.open(member) as source, open(target_file, "wb") as target:
 								shutil.copyfileobj(source, target)
@@ -581,10 +587,201 @@ def build_ritobin_cmd(
 		"-o", str(output_path),
 		"-t", "rito" if mode == "decompile" else "bin",
 	]
-	if hashes_dir and Path(hashes_dir).is_dir():
+	if hashes_dir and Path(hashes_dir).is_dir() and any(Path(hashes_dir).glob("*.txt")):
 		cmd += ["-H", str(hashes_dir)]
 	return cmd
 
+
+def run_cmd(
+	cmd: list[str],
+	cwd: Path | None = None,
+	dry_run: bool = False,
+	progress_callback: Callable[[str], None] | None = None,
+) -> subprocess.CompletedProcess:
+	if dry_run:
+		return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+	kwargs: dict = {}
+	if sys.platform == "win32":
+		kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+		startupinfo = subprocess.STARTUPINFO()
+		startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+		startupinfo.wShowWindow = subprocess.SW_HIDE
+		kwargs["startupinfo"] = startupinfo
+
+	process = subprocess.Popen(
+		cmd,
+		cwd=cwd,
+		stdout=subprocess.PIPE,
+		stderr=subprocess.STDOUT,
+		text=True,
+		encoding="utf-8",
+		errors="replace",
+		**kwargs,
+	)
+	output: list[str] = []
+	assert process.stdout is not None
+	for line in process.stdout:
+		line = line.rstrip()
+		if line:
+			output.append(line)
+			if progress_callback:
+				progress_callback(line)
+	returncode = process.wait()
+	if returncode:
+		detail = "\n".join(output)
+		raise subprocess.CalledProcessError(returncode, cmd, output=detail, stderr=detail)
+
+	return subprocess.CompletedProcess(cmd, returncode, stdout="\n".join(output), stderr="")
+
+
+def extract_wad(
+	wad_path: Path,
+	dest_dir: Path,
+	tools: dict,
+	filter_type: str | None = "bin",
+	filter_pattern: str | None = None,
+	dry_run: bool = False,
+	progress_callback: Callable[[str], None] | None = None,
+) -> Path:
+	wad_path, dest_dir = Path(wad_path), Path(dest_dir)
+	dest_dir.mkdir(parents=True, exist_ok=True)
+
+	if not tools.get("wadtools") or not tools["wadtools"].exists():
+		raise FileNotFoundError(f"wadtools.exe not found for {wad_path.name}")
+
+	cmd = [str(tools["wadtools"]), "extract", "-i", str(wad_path), "-o", str(dest_dir), "--overwrite"]
+	if filter_type:
+		cmd += ["-f", filter_type]
+	if filter_pattern:
+		cmd += ["-x", filter_pattern]
+
+	hashes_game = Path(tools.get("hashes_dir", "")) / "hashes.game.txt"
+	if hashes_game.is_file() and hashes_game.stat().st_size > 1024:
+		cmd += ["-H", str(hashes_game)]
+
+	try:
+		run_cmd(cmd, dry_run=dry_run, progress_callback=progress_callback)
+	except subprocess.CalledProcessError:
+		if filter_pattern:
+			fallback_cmd = [str(tools["wadtools"]), "extract", "-i", str(wad_path), "-o", str(dest_dir), "--overwrite"]
+			if filter_type:
+				fallback_cmd += ["-f", filter_type]
+			if hashes_game.is_file() and hashes_game.stat().st_size > 1024:
+				fallback_cmd += ["-H", str(hashes_game)]
+			run_cmd(fallback_cmd, dry_run=dry_run, progress_callback=progress_callback)
+		else:
+			raise
+
+	return dest_dir
+
+
+def _ritobin_file_job(args: tuple[str, Path, Path, Path, Path | None, bool]) -> tuple[bool, str, str]:
+	mode, input_path, output_path, ritobin, hashes_dir, dry_run = args
+	cmd = build_ritobin_cmd(ritobin, mode, input_path, output_path, hashes_dir)
+	try:
+		run_cmd(cmd, dry_run=dry_run)
+		return True, str(input_path), ""
+	except subprocess.CalledProcessError as exc:
+		raw_err = exc.stderr if exc.stderr else exc.stdout
+		detail = raw_err.decode("utf-8", errors="ignore") if isinstance(raw_err, bytes) else str(raw_err or exc)
+		return False, str(input_path), detail
+
+
+def decompile_bin_files(
+	source_dir: Path,
+	tools: dict,
+	dry_run: bool = False,
+	progress_callback: Callable[[int, int, str], None] | None = None,
+	file_selector: Callable[[Path], list[Path]] | None = None,
+	parallel: bool = True,
+) -> int:
+	ritobin = tools.get("ritobin")
+	hashes_dir = tools.get("hashes_dir")
+	if not ritobin or not Path(ritobin).exists():
+		raise FileNotFoundError(f"ritobin.exe not found for decompilation in {source_dir}")
+	count = 0
+	bin_files = file_selector(source_dir) if file_selector else find_files_by_extensions(source_dir, [".bin", ".materials"])
+	total = len(bin_files)
+	if not total:
+		if progress_callback:
+			progress_callback(0, 0, "decompile_complete")
+		return 0
+	jobs = []
+	for bin_file in bin_files:
+		out_txt = bin_file.with_name(bin_file.name + ".txt")
+		jobs.append(("decompile", bin_file, out_txt, Path(ritobin), hashes_dir, dry_run))
+
+	def consume(result, current_count: int):
+		nonlocal count
+		success, input_name, detail = result
+		if success:
+			count += 1
+			if progress_callback:
+				rel_name = str(Path(input_name).relative_to(source_dir)).replace("\\", "/")
+				progress_callback(current_count, total, rel_name)
+		else:
+			raise RuntimeError(f"ritobin failed to decompile {input_name}: {detail or 'no details'}")
+
+	if parallel and len(jobs) > 1:
+		with ProcessPoolExecutor(max_workers=min(MAX_PARALLEL_RITOBIN_JOBS, len(jobs))) as executor:
+			future_map = {executor.submit(_ritobin_file_job, job): idx for idx, job in enumerate(jobs, start=1)}
+			completed_items = 0
+			for future in as_completed(future_map):
+				completed_items += 1
+				consume(future.result(), completed_items)
+	else:
+		for idx, job in enumerate(jobs, start=1):
+			consume(_ritobin_file_job(job), idx)
+
+	return count
+
+
+def recompile_text_to_bin(
+	source_dir: Path,
+	tools: dict,
+	dry_run: bool = False,
+	progress_callback: Callable[[int, int, str], None] | None = None,
+	file_selector: Callable[[Path], list[Path]] | None = None,
+	parallel: bool = True,
+) -> int:
+	ritobin = tools.get("ritobin")
+	hashes_dir = tools.get("hashes_dir")
+	if not ritobin or not Path(ritobin).exists():
+		raise FileNotFoundError(f"ritobin.exe not found for recompilation in {source_dir}")
+	count = 0
+	txt_files = file_selector(source_dir) if file_selector else find_files_by_extensions(source_dir, ".txt")
+	total = len(txt_files)
+	if not total:
+		return 0
+	jobs = []
+	for txt_file in txt_files:
+		out_bin = txt_file.with_name(txt_file.name[:-4]) if txt_file.name.lower().endswith(".txt") else txt_file
+		jobs.append(("recompile", txt_file, out_bin, Path(ritobin), hashes_dir, dry_run))
+
+	def consume(result, current_count: int):
+		nonlocal count
+		success, input_name, detail = result
+		if success:
+			count += 1
+			if progress_callback:
+				rel_name = str(Path(input_name).relative_to(source_dir)).replace("\\", "/")
+				progress_callback(current_count, total, rel_name)
+		else:
+			raise RuntimeError(f"ritobin failed to recompile {input_name}: {detail or 'no details'}")
+
+	if parallel and len(jobs) > 1:
+		with ProcessPoolExecutor(max_workers=min(MAX_PARALLEL_RITOBIN_JOBS, len(jobs))) as executor:
+			future_map = {executor.submit(_ritobin_file_job, job): idx for idx, job in enumerate(jobs, start=1)}
+			completed_items = 0
+			for future in as_completed(future_map):
+				completed_items += 1
+				consume(future.result(), completed_items)
+	else:
+		for idx, job in enumerate(jobs, start=1):
+			consume(_ritobin_file_job(job), idx)
+
+	return count
 
 # ==============================================================================
 # FILE FILTERING & CANONICAL MASTER DISCOVERY
@@ -705,6 +902,119 @@ def _iter_champion_wads(champions_dir: Path = DEFAULT_CHAMPIONS_DIR) -> list[Pat
 	return sorted(filtered)
 
 
+def find_files_by_extensions(directory: Path, extensions: set[str] | list[str] | str) -> list[Path]:
+	if isinstance(extensions, str):
+		extensions = {extensions}
+	extensions_lower = {ext.lower() if ext.startswith('.') else '.' + ext.lower() for ext in extensions}
+	matched: list[Path] = []
+	for root, _, files in os.walk(str(directory)):
+		for file_name in files:
+			p = Path(root) / file_name
+			if p.suffix.lower() in extensions_lower:
+				matched.append(p)
+	return matched
+
+
+def _normalize_asset_path(path: str | Path) -> str:
+	return str(path).replace("\\", "/").lstrip("/").lower()
+
+
+def _is_mod_target_file(wad_name: str, rel_path: str, options: dict[str, bool] | None = None) -> bool:
+	if options is None:
+		options = {
+			"accents": True,
+			"wards": True,
+			"structures": True,
+			"minions": True,
+			"finishers": True,
+			"recalls": True,
+			"champions": True,
+		}
+	opt_accents = options.get("accents", True)
+	opt_wards = options.get("wards", True)
+	opt_structures = options.get("structures", True)
+	opt_minions = options.get("minions", True)
+	opt_finishers = options.get("finishers", True)
+	opt_recalls = options.get("recalls", True)
+	opt_champions = options.get("champions", True)
+
+	rel_lower = rel_path.lower()
+	wad_lower = wad_name.lower()
+
+	if opt_accents and rel_lower.endswith("transparent.tex"):
+		return True
+
+	if opt_finishers:
+		if wad_lower in {"ui.wad.client", "global.wad.client"}:
+			if any(k in rel_lower for k in ("nexusfinisher", "endofgame")):
+				return True
+
+	if opt_recalls and wad_lower == "global.wad.client" and "shared" in rel_lower:
+		return True
+
+	if opt_accents and wad_lower == "global.wad.client":
+		if any(k in rel_lower for k in ("summonerbanner", "summonertroph")):
+			return True
+
+	if wad_lower.endswith(".wad.client") and wad_lower not in {"map11.wad.client", "global.wad.client", "ui.wad.client"}:
+		if not opt_champions:
+			return False
+		if rel_lower.endswith(".skn"):
+			return True
+		m = re.search(r'[/\\]skins[/\\]skin(\d+)\.bin$', rel_lower)
+		return bool(m and m.group(1) != "0")
+
+	if wad_lower == "map11.wad.client":
+		if opt_accents and any(ev in rel_lower for ev in EVENT_CHARACTERS):
+			return True
+
+		if "characters" in rel_lower:
+			m = re.search(r'characters[/\\]([^/\\]+)(?:[/\\]skins)?[/\\]([^/\\]+)$', rel_lower)
+			if m:
+				char_name, file_name = m.group(1), m.group(2)
+
+				if opt_accents and char_name in BANNER_CHARACTERS:
+					return file_name in {"skin0.bin", "root.bin"}
+
+				m_skin = re.fullmatch(r'skin(\d+)\.bin', file_name)
+				if not m_skin:
+					return False
+				skin_id = m_skin.group(1)
+
+				if char_name in {"turret", "inhibitor", "nexus"}:
+					return opt_structures and skin_id not in {"0", "1", "2", "3"}
+
+				if char_name == "turretrubble":
+					return opt_structures and skin_id not in {"0", "1"}
+
+				if skin_id in {"0", "1"} and char_name in MINION_CHARACTERS:
+					return False
+
+				if skin_id == "0":
+					return False
+
+				if opt_wards and char_name in WARD_CHARACTERS:
+					return True
+				if opt_structures and char_name in STRUCTURE_CHARACTERS:
+					return True
+				if opt_minions and (char_name in MINION_CHARACTERS or (char_name.startswith("sru_") and "minion" in char_name)):
+					return True
+				if opt_champions and char_name in MAP_CHAMPION_CHARACTERS:
+					return True
+			return False
+
+		if "base_srx.materials.bin" in rel_lower:
+			return opt_accents
+
+		if rel_lower.endswith("maps/shipping/map11/map11.bin") or rel_lower.endswith("/map11.bin"):
+			return opt_accents
+
+		if "particle" in rel_lower:
+			return opt_accents
+
+	return False
+
+
 def _clean_code_line(line: str) -> str:
 	if "#" in line:
 		line = line.split("#", 1)[0]
@@ -712,8 +1022,7 @@ def _clean_code_line(line: str) -> str:
 		return re.sub(r'"(?:\\.|[^"\\])*"', '', line)
 	return line
 
-
-# ==============================================================================
+	# ==============================================================================
 # DETERMINISTIC MAP SANITIZATION (PRESERVING NATIVE TEXTURE PATHS)
 # ==============================================================================
 def _extract_diffuse_texture(block_text: str) -> str:
@@ -727,9 +1036,7 @@ def _make_neutralized_material(key: str, block_text: str, native_texture_path: s
 	m_name = re.search(r'(?i)^\s*(name:\s*hash\[u64\]\s*=\s*0x[0-9a-fA-F]+)', block_text, re.MULTILINE)
 	if not m_name:
 		m_name = re.search(r'(?i)^\s*(name:\s*[^\r\n]+)', block_text, re.MULTILINE)
-	if not m_name:
-		raise ValueError(f"Corrupted or invalid StaticMaterialDef block: missing name identifier!\n{block_text[:200]}")
-	name_line = m_name.group(1).strip()
+	name_line = m_name.group(1).strip() if m_name else 'name: string = "Neutralized"'
 
 	return (
 		f'    "{key}" = StaticMaterialDef {{\n'
@@ -768,6 +1075,7 @@ def _make_neutralized_material(key: str, block_text: str, native_texture_path: s
 		f'    }}\n'
 	)
 
+
 def _make_empty_vfx(key: str) -> str:
 	if key:
 		return (
@@ -782,9 +1090,6 @@ def _make_empty_vfx(key: str) -> str:
 		f'        simpleEmitterDefinitionData: list[pointer] = {{}}\n'
 		f'    }}\n'
 	)
-
-
-_TEX_CAPTURE_PATTERN = re.compile(r'(["\'])([^"\']*?[/\\])?([^"\'/\\]+)\.tex\1', re.IGNORECASE)
 
 
 def _sanitize_event_npc_text(text: str) -> tuple[str, int]:
@@ -811,31 +1116,26 @@ def _sanitize_text_content(text: str, filename: str) -> tuple[str, int]:
 	fn_lower = filename.replace("\\", "/").lower()
 
 	if "map11.bin" in fn_lower:
-
 		out_text, c_geo = re.subn(
 			r'(?i)(\bmMapContainerLink\s*:\s*\w+\s*=\s*)"[^"]+"',
 			r'\g<1>"Maps/MapGeometry/Map11/Base_SRX"',
 			out_text
 		)
-
 		out_text, c_cfg = re.subn(
 			r'(?i)(\bmMapObjectsCFG\s*:\s*\w+\s*=\s*)"[^"]*"',
 			r'\g<1>"ASSETS/Maps/Deprecated/Map11/CFG/objectcfg_SRX.cfg"',
 			out_text
 		)
-
 		out_text, c_ini = re.subn(
 			r'(?i)(\bmWorldParticlesINI\s*:\s*\w+\s*=\s*)"[^"]*"',
 			r'\g<1>"ASSETS/Maps/Particles/Deprecated/Map11/Particles_SRX.ini"',
 			out_text
 		)
-
 		out_text, c_res = re.subn(
 			r'(?i)(\bmResourceResolvers\s*:\s*list\[link\]\s*=\s*\{)[^}]*\}',
 			r'\g<1> "Maps/Shipping/Map11/MapSkins/Default/Resources" }',
 			out_text
 		)
-
 		changes += (c_geo + c_cfg + c_ini + c_res)
 
 	for pattern, replacer in _SRS_TO_CANONICAL_TEX_RULES:
@@ -900,6 +1200,7 @@ def _sanitize_text_content(text: str, filename: str) -> tuple[str, int]:
 		changes += c_ev
 
 	return out_text, changes
+
 
 def clean_map_elements(
 	wad_dir: Path,
@@ -1151,6 +1452,7 @@ def _apply_recall_template(workspace_root: Path, key: str, fallback_stem: str) -
 		return None
 	try:
 		text = tpl_path.read_text(encoding="utf-8", errors="ignore")
+		text = text.replace("{RECALL_KEY}", clean_key).replace("{RECALL_NAME}", short_name)
 		text = re.sub(r'(?i)^\s*(?:"[^"]+"|[^\s=]+)\s*=\s*VfxSystemDefinitionData', f'    "{clean_key}" = VfxSystemDefinitionData', text, count=1)
 		text = re.sub(r'(?i)(particleName:\s*string\s*=\s*)"[^"]*"', rf'\1"{short_name}"', text)
 		text = re.sub(r'(?i)(particlePath:\s*string\s*=\s*)"[^"]*"', rf'\1"{clean_key}"', text)
@@ -1246,12 +1548,13 @@ def _sanitize_recall_text(text: str, workspace_root: Path = DEFAULT_WORKSPACE_RO
 
 def clean_recall_elements(
 	wad_dir: Path,
+	workspace_root: Path = DEFAULT_WORKSPACE_ROOT,
 	dry_run: bool = False,
 	progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> list[Path]:
 	modified_files: list[Path] = []
 	txt_files = find_files_by_extensions(wad_dir, ".txt")
-	target_files = [p for p in txt_files if "shared" in p.name.lower()]
+	target_files = [p for p in txt_files if any(k in p.name.lower() for k in ("shared", "troy", "recall"))]
 	total = len(target_files)
 
 	for index, txt_file in enumerate(target_files, start=1):
@@ -1264,7 +1567,7 @@ def clean_recall_elements(
 		except Exception:
 			continue
 
-		cleaned, n_changes = _sanitize_recall_text(text)
+		cleaned, n_changes = _sanitize_recall_text(text, workspace_root=workspace_root)
 		if cleaned != text and n_changes > 0:
 			if not dry_run:
 				txt_file.parent.mkdir(parents=True, exist_ok=True)
@@ -1308,9 +1611,6 @@ def patch_skn_submesh_inplace(base_skn_bytes: bytes, old_name: str, new_name: st
 	return bytes(patched)
 
 
-# ==============================================================================
-# MASTER CHAMPION VANILLA RESTORE (PR #284 SCHEMA COMPLIANT)
-# ==============================================================================
 def sync_template_linked_block(template_content: str, base_text: str) -> str:
 	if not base_text:
 		return template_content
@@ -1332,7 +1632,6 @@ def fast_vanilla_revert(
 		base_text,
 		count=1,
 	)
-	# Suporte a hash e hash[width, algo] (PR #284)
 	text = re.sub(
 		r'(?i)(objectPath:\s*hash(?:\[[^\]]+\])?\s*=\s*["\'](?:Characters[/\\])?[^"\'/\\]+[/\\]Skins[/\\])Skin\d+(["\'])',
 		rf'\g<1>{target_skin}\g<2>',
@@ -1504,9 +1803,6 @@ def _expand_ward_skin0_only_hash(char_name: str, base_text: str, target_skin: st
 	return text
 
 
-# ==============================================================================
-# OTHER MODES STRUCTURAL INTEGRITY
-# ==============================================================================
 _OTHER_TAGS = "|".join(sorted(_OTHER_INTEGRITY, key=len, reverse=True))
 _OTHER_INTEGRITY_PATTERN = re.compile(rf'(?i)(?<![a-z0-9])(?:{_OTHER_TAGS})(?![a-z0-9])')
 _OTHER_INTEGRITY_PATHS = re.compile(rf'(?i)[/\\](?:{_OTHER_TAGS})[/\\]')
@@ -1518,8 +1814,9 @@ def is_other_mode_structure(skin_name: str, content: str = "") -> bool:
 		return True
 	return False
 
+
 # ==============================================================================
-# MASTER MAP11 CHARACTER RESTORATION (STRUCTURES, RUBBLE, MINIONS, WARDS, BANNERS)
+# LEGACY MAP11 MASTER CHARACTERS ENGINE (TURRETS, RUBBLE, MINIONS, WARDS, BANNERS)
 # ==============================================================================
 def process_map11_master_characters(
 	map11_wad_dir: Path,
@@ -1835,8 +2132,9 @@ def process_map11_master_characters(
 
 	return generated_files
 
+
 # ==============================================================================
-# PARALLEL CHAMPION PROCESSING (HIGH SPEED IN-MEMORY PIPELINE)
+# LEGACY MULTIPROCESSING CHAMPION WORKER POOL (PARALLEL TELEMETRY 1:1)
 # ==============================================================================
 def _process_one_champion_wad_job(args: tuple[Path, dict, Path, bool, object]) -> tuple[Path, str]:
 	wad_path, tools, cache_dir, dry_run, progress_queue = args
@@ -1856,7 +2154,6 @@ def _process_one_champion_wad_job(args: tuple[Path, dict, Path, bool, object]) -
 		temp_dir = Path(temp_dir_str)
 		progress_queue.put((wad_path.name, 0.05, "extracting WAD", wad_path.name))
 		
-		# Extract only the relevant champion skin files from the WAD, filtering for skin BINs and SKNs
 		extract_wad(
 			wad_path,
 			temp_dir,
@@ -1917,7 +2214,6 @@ def _process_one_champion_wad_job(args: tuple[Path, dict, Path, bool, object]) -
 					shutil.copy2(out_bin, dest)
 					copied += 1
 
-			# Execute in-place submesh alias patching for SKN files if any alias tasks were defined
 			if submesh_alias_tasks:
 				for ent_name, skin_sfx, old_sub, new_sub in submesh_alias_tasks:
 					base_skn_list = [p for p in temp_dir.rglob("*.skn") if "base" in p.as_posix().lower()]
@@ -1932,7 +2228,7 @@ def _process_one_champion_wad_job(args: tuple[Path, dict, Path, bool, object]) -
 						dest_skn.parent.mkdir(parents=True, exist_ok=True)
 						dest_skn.write_bytes(patched_bytes)
 						copied += 1
-						LOG.info("Applied 0ms in-place submesh patch for %s Skin%s: %s -> %s", ent_name, skin_sfx, old_sub, new_sub)
+						LOG.info("Applied in-place submesh patch for %s Skin%s: %s -> %s", ent_name, skin_sfx, old_sub, new_sub)
 
 			if copied > 0:
 				_write_cache_hash(wad_cache_dir, wad_hash, script_hash)
@@ -2015,418 +2311,7 @@ def process_champion_wads(
 
 
 # ==============================================================================
-# DIRECTORY LIFECYCLE & SIGNALS (MAINPROCESS EXCLUSIVE)
-# ==============================================================================
-def cleanup_temp_dirs() -> None:
-	if multiprocessing.current_process().name != "MainProcess":
-		return
-	if DEFAULT_TEMP_DIR.is_dir():
-		try:
-			shutil.rmtree(DEFAULT_TEMP_DIR, ignore_errors=True)
-		except Exception as exc:
-			LOG.warning("Failed to remove temporary workspace %s: %s", DEFAULT_TEMP_DIR, exc)
-
-
-def cleanup_orphaned_temp_dirs() -> None:
-	if multiprocessing.current_process().name != "MainProcess":
-		return
-	if not DEFAULT_TEMP_DIR.is_dir():
-		return
-
-	candidates: list[Path] = []
-	for pattern in ("vanilla_builder_*", "vanilla_fantome_*", "vanilla_map11_*", "vanilla_champ_*", "vanilla_finisher_*"):
-		candidates.extend(DEFAULT_TEMP_DIR.glob(pattern))
-
-	now = time.time()
-	for temp_dir in sorted({p.resolve() for p in candidates}, key=lambda p: (len(p.parts), str(p))):
-		if not temp_dir.is_dir():
-			continue
-		try:
-			if (now - temp_dir.stat().st_mtime) < 600:
-				continue
-			shutil.rmtree(temp_dir, ignore_errors=True)
-		except OSError as exc:
-			LOG.warning("Could not remove orphaned directory %s: %s", temp_dir, exc)
-
-
-def _handle_interrupt(signum, _frame):
-	if multiprocessing.current_process().name == "MainProcess":
-		LOG.warning("Interrupt received (signal %s). Cleaning workspace...", signum)
-		cleanup_temp_dirs()
-	raise SystemExit(128 + signum)
-
-
-signal.signal(signal.SIGINT, _handle_interrupt)
-if hasattr(signal, "SIGTERM"):
-	signal.signal(signal.SIGTERM, _handle_interrupt)
-
-atexit.register(cleanup_temp_dirs)
-
-
-def find_files_by_extensions(directory: Path, extensions: set[str] | list[str] | str) -> list[Path]:
-	if isinstance(extensions, str):
-		extensions = {extensions}
-	extensions_lower = {ext.lower() if ext.startswith('.') else '.' + ext.lower() for ext in extensions}
-	matched: list[Path] = []
-	for root, _, files in os.walk(str(directory)):
-		for file_name in files:
-			p = Path(root) / file_name
-			if p.suffix.lower() in extensions_lower:
-				matched.append(p)
-	return matched
-
-
-def _normalize_asset_path(path: str | Path) -> str:
-	return str(path).replace("\\", "/").lstrip("/").lower()
-
-
-def _is_mod_target_file(wad_name: str, rel_path: str, options: dict[str, bool] | None = None) -> bool:
-	if options is None:
-		options = {
-			"accents": True,
-			"wards": True,
-			"structures": True,
-			"minions": True,
-			"finishers": True,
-			"recalls": True,
-			"champions": True,
-		}
-	opt_accents = options.get("accents", True)
-	opt_wards = options.get("wards", True)
-	opt_structures = options.get("structures", True)
-	opt_minions = options.get("minions", True)
-	opt_finishers = options.get("finishers", True)
-	opt_recalls = options.get("recalls", True)
-	opt_champions = options.get("champions", True)
-
-	rel_lower = rel_path.lower()
-	wad_lower = wad_name.lower()
-
-	if opt_accents and rel_lower.endswith("transparent.tex"):
-		return True
-
-	if opt_finishers:
-		if wad_lower in {"ui.wad.client", "global.wad.client"}:
-			if any(k in rel_lower for k in ("nexusfinisher", "endofgame")):
-				return True
-
-	if opt_recalls and wad_lower == "global.wad.client" and "shared" in rel_lower:
-		return True
-
-	if opt_accents and wad_lower == "global.wad.client":
-		if any(k in rel_lower for k in ("summonerbanner", "summonertroph")):
-			return True
-
-	if wad_lower.endswith(".wad.client") and wad_lower not in {"map11.wad.client", "global.wad.client", "ui.wad.client"}:
-		if not opt_champions:
-			return False
-		# Support .SKN file filtering for champion skins
-		if rel_lower.endswith(".skn"):
-			return True
-		m = re.search(r'[/\\]skins[/\\]skin(\d+)\.bin$', rel_lower)
-		return bool(m and m.group(1) != "0")
-
-	if wad_lower == "map11.wad.client":
-		if opt_accents and any(ev in rel_lower for ev in EVENT_CHARACTERS):
-			return True
-
-		if "characters" in rel_lower:
-			m = re.search(r'characters[/\\]([^/\\]+)(?:[/\\]skins)?[/\\]([^/\\]+)$', rel_lower)
-			if m:
-				char_name, file_name = m.group(1), m.group(2)
-
-				if opt_accents and char_name in BANNER_CHARACTERS:
-					return file_name in {"skin0.bin", "root.bin"}
-
-				m_skin = re.fullmatch(r'skin(\d+)\.bin', file_name)
-				if not m_skin:
-					return False
-				skin_id = m_skin.group(1)
-
-				if char_name in {"turret", "inhibitor", "nexus"}:
-					return opt_structures and skin_id not in {"0", "1", "2", "3"}
-
-				if char_name == "turretrubble":
-					return opt_structures and skin_id not in {"0", "1"}
-
-				if skin_id in {"0", "1"} and char_name in MINION_CHARACTERS:
-					return False
-
-				if skin_id == "0":
-					return False
-
-				if opt_wards and char_name in WARD_CHARACTERS:
-					return True
-				if opt_structures and char_name in STRUCTURE_CHARACTERS:
-					return True
-				if opt_minions and (char_name in MINION_CHARACTERS or (char_name.startswith("sru_") and "minion" in char_name)):
-					return True
-				if opt_champions and char_name in MAP_CHAMPION_CHARACTERS:
-					return True
-			return False
-
-		if "base_srx.materials.bin" in rel_lower:
-			return opt_accents
-
-		if rel_lower.endswith("maps/shipping/map11/map11.bin") or rel_lower.endswith("/map11.bin"):
-			return opt_accents
-
-		if "particle" in rel_lower:
-			return opt_accents
-
-	return False
-
-
-def resolve_default_paths() -> dict[str, Path | None]:
-	return {
-		"league_root": DEFAULT_LEAGUE_ROOT,
-		"final_dir": DEFAULT_FINAL_DIR,
-		"map_wad": DEFAULT_MAP_WAD,
-		"ui_wad": DEFAULT_UI_WAD,
-		"champions_dir": DEFAULT_CHAMPIONS_DIR,
-		"workspace_root": DEFAULT_WORKSPACE_ROOT,
-		"tools_dir": DEFAULT_WORKSPACE_ROOT / "tools",
-	}
-
-
-def run_cmd(cmd: list[str], cwd: Path | None = None, dry_run: bool = False, progress_callback: Callable[[str], None] | None = None) -> subprocess.CompletedProcess:
-	if dry_run:
-		return subprocess.CompletedProcess(cmd, 0, stdout=b"", stderr=b"")
-
-	kwargs: dict = {}
-	if sys.platform == "win32":
-		kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-		startupinfo = subprocess.STARTUPINFO()
-		startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-		startupinfo.wShowWindow = subprocess.SW_HIDE
-		kwargs["startupinfo"] = startupinfo
-
-	process = subprocess.Popen(
-		cmd,
-		cwd=cwd,
-		stdout=subprocess.PIPE,
-		stderr=subprocess.STDOUT,
-		text=True,
-		encoding="utf-8",
-		errors="replace",
-		**kwargs,
-	)
-	output: list[str] = []
-	assert process.stdout is not None
-	for line in process.stdout:
-		line = line.rstrip()
-		if line:
-			output.append(line)
-			if progress_callback:
-				progress_callback(line)
-	returncode = process.wait()
-	if returncode:
-		detail = "\n".join(output)
-		raise subprocess.CalledProcessError(returncode, cmd, output=detail, stderr=detail)
-
-	return subprocess.CompletedProcess(cmd, returncode, stdout="\n".join(output), stderr="")
-
-
-def setup_workspace(
-	base_dir: Path = Path.cwd(),
-	force_hashes: bool = False,
-	progress_callback: Callable[[str], None] | None = None,
-	sync_tools: bool = True,
-	sync_hashes: bool = True,
-) -> dict:
-	base_dir = Path(base_dir)
-	cleanup_orphaned_temp_dirs()
-	tools_dir = base_dir / "tools"
-
-	if sync_tools:
-		ensure_toolkit_binaries(tools_dir, progress_callback=progress_callback)
-
-	wadtools = tools_dir / "wadtools.exe"
-	ritobin = tools_dir / "ritobin.exe"
-	hashes_dir = tools_dir / "hashes"
-
-	if not wadtools.exists():
-		LOG.warning("wadtools.exe not found at %s", wadtools)
-	if not ritobin.exists():
-		LOG.warning("ritobin.exe not found at %s", ritobin)
-
-	if sync_hashes:
-		ensure_ritobin_hashes(hashes_dir, force=force_hashes, progress_callback=progress_callback)
-
-	cache_dir = base_dir / "cache"
-	cache_dir.mkdir(parents=True, exist_ok=True)
-
-	overrides_dir = base_dir / "overrides"
-	overrides_dir.mkdir(parents=True, exist_ok=True)
-
-	return {
-		"base_dir": base_dir,
-		"workspace_root": base_dir,
-		"tools_dir": tools_dir,
-		"wadtools": wadtools,
-		"ritobin": ritobin,
-		"hashes_dir": hashes_dir,
-		"final_dir": DEFAULT_FINAL_DIR,
-		"champions_dir": DEFAULT_CHAMPIONS_DIR,
-		"champion_wads": _iter_champion_wads(),
-		"cache_dir": cache_dir,
-		"overrides_dir": overrides_dir,
-	}
-
-
-# ==============================================================================
-# RITOBIN & WADTOOLS INTEGRATION (DYNAMIC CLI & PR #284 READY)
-# ==============================================================================
-def extract_wad(
-	wad_path: Path,
-	dest_dir: Path,
-	tools: dict,
-	filter_type: str | None = "bin",
-	filter_pattern: str | None = None,
-	dry_run: bool = False,
-	progress_callback: Callable[[str], None] | None = None,
-) -> Path:
-	wad_path, dest_dir = Path(wad_path), Path(dest_dir)
-	dest_dir.mkdir(parents=True, exist_ok=True)
-
-	if not tools.get("wadtools") or not tools["wadtools"].exists():
-		raise FileNotFoundError(f"wadtools.exe not found for {wad_path.name}")
-
-	cmd = [str(tools["wadtools"]), "extract", "-i", str(wad_path), "-o", str(dest_dir), "--overwrite"]
-	if filter_type:
-		cmd += ["-f", filter_type]
-	if filter_pattern:
-		cmd += ["-x", filter_pattern]
-
-	hashes_game = Path(tools.get("hashes_dir", "")) / "hashes.game.txt"
-	if hashes_game.is_file() and hashes_game.stat().st_size > 1024:
-		cmd += ["-H", str(hashes_game)]
-
-	try:
-		run_cmd(cmd, dry_run=dry_run, progress_callback=progress_callback)
-	except subprocess.CalledProcessError:
-		if filter_pattern:
-			fallback_cmd = [str(tools["wadtools"]), "extract", "-i", str(wad_path), "-o", str(dest_dir), "--overwrite"]
-			if filter_type:
-				fallback_cmd += ["-f", filter_type]
-			if hashes_game.is_file() and hashes_game.stat().st_size > 1024:
-				fallback_cmd += ["-H", str(hashes_game)]
-			run_cmd(fallback_cmd, dry_run=dry_run, progress_callback=progress_callback)
-		else:
-			raise
-
-	return dest_dir
-
-
-def _ritobin_file_job(args: tuple[str, Path, Path, Path, Path | None, bool]) -> tuple[bool, str, str]:
-	mode, input_path, output_path, ritobin, hashes_dir, dry_run = args
-	cmd = build_ritobin_cmd(ritobin, mode, input_path, output_path, hashes_dir)
-	try:
-		run_cmd(cmd, dry_run=dry_run)
-		return True, str(input_path), ""
-	except subprocess.CalledProcessError as exc:
-		raw_err = exc.stderr if exc.stderr else exc.stdout
-		detail = raw_err.decode("utf-8", errors="ignore") if isinstance(raw_err, bytes) else str(raw_err or exc)
-		return False, str(input_path), detail
-
-
-def decompile_bin_files(
-	source_dir: Path,
-	tools: dict,
-	dry_run: bool = False,
-	progress_callback: Callable[[int, int, str], None] | None = None,
-	file_selector: Callable[[Path], list[Path]] | None = None,
-	parallel: bool = True,
-) -> int:
-	ritobin = tools.get("ritobin")
-	hashes_dir = tools.get("hashes_dir")
-	if not ritobin or not Path(ritobin).exists():
-		raise FileNotFoundError(f"ritobin.exe not found for decompilation in {source_dir}")
-	count = 0
-	bin_files = file_selector(source_dir) if file_selector else find_files_by_extensions(source_dir, [".bin", ".materials"])
-	total = len(bin_files)
-	if not total:
-		if progress_callback:
-			progress_callback(0, 0, "decompile_complete")
-		return 0
-	jobs = []
-	for bin_file in bin_files:
-		out_txt = bin_file.with_name(bin_file.name + ".txt")
-		jobs.append(("decompile", bin_file, out_txt, Path(ritobin), hashes_dir, dry_run))
-
-	def consume(result, current_count: int):
-		nonlocal count
-		success, input_name, detail = result
-		if success:
-			count += 1
-			if progress_callback:
-				rel_name = str(Path(input_name).relative_to(source_dir)).replace("\\", "/")
-				progress_callback(current_count, total, rel_name)
-		else:
-			raise RuntimeError(f"ritobin failed to decompile {input_name}: {detail or 'no details'}")
-
-	if parallel and len(jobs) > 1:
-		with ProcessPoolExecutor(max_workers=min(MAX_PARALLEL_RITOBIN_JOBS, len(jobs))) as executor:
-			future_map = {executor.submit(_ritobin_file_job, job): idx for idx, job in enumerate(jobs, start=1)}
-			completed_items = 0
-			for future in as_completed(future_map):
-				completed_items += 1
-				consume(future.result(), completed_items)
-	else:
-		for idx, job in enumerate(jobs, start=1):
-			consume(_ritobin_file_job(job), idx)
-
-	return count
-
-
-def recompile_text_to_bin(
-	source_dir: Path,
-	tools: dict,
-	dry_run: bool = False,
-	progress_callback: Callable[[int, int, str], None] | None = None,
-	file_selector: Callable[[Path], list[Path]] | None = None,
-	parallel: bool = True,
-) -> int:
-	ritobin = tools.get("ritobin")
-	hashes_dir = tools.get("hashes_dir")
-	if not ritobin or not Path(ritobin).exists():
-		raise FileNotFoundError(f"ritobin.exe not found for recompilation in {source_dir}")
-	count = 0
-	txt_files = file_selector(source_dir) if file_selector else find_files_by_extensions(source_dir, ".txt")
-	total = len(txt_files)
-	if not total:
-		return 0
-	jobs = []
-	for txt_file in txt_files:
-		out_bin = txt_file.with_name(txt_file.name[:-4]) if txt_file.name.lower().endswith(".txt") else txt_file
-		jobs.append(("recompile", txt_file, out_bin, Path(ritobin), hashes_dir, dry_run))
-
-	def consume(result, current_count: int):
-		nonlocal count
-		success, input_name, detail = result
-		if success:
-			count += 1
-			if progress_callback:
-				rel_name = str(Path(input_name).relative_to(source_dir)).replace("\\", "/")
-				progress_callback(current_count, total, rel_name)
-		else:
-			raise RuntimeError(f"ritobin failed to recompile {input_name}: {detail or 'no details'}")
-
-	if parallel and len(jobs) > 1:
-		with ProcessPoolExecutor(max_workers=min(MAX_PARALLEL_RITOBIN_JOBS, len(jobs))) as executor:
-			future_map = {executor.submit(_ritobin_file_job, job): idx for idx, job in enumerate(jobs, start=1)}
-			completed_items = 0
-			for future in as_completed(future_map):
-				completed_items += 1
-				consume(future.result(), completed_items)
-	else:
-		for idx, job in enumerate(jobs, start=1):
-			consume(_ritobin_file_job(job), idx)
-
-	return count
-
-# ==============================================================================
-# FINAL .FANTOME PACKAGING (DIRECT FLAT WAD HARVESTING)
+# LEGACY STANDALONE .FANTOME PACKAGING (DIRECT FLAT WAD HARVESTING)
 # ==============================================================================
 def create_standalone_fantome(
 	cache_root: Path,
@@ -2454,12 +2339,7 @@ def create_standalone_fantome(
 		"recalls": "Special Recalls",
 	}
 	active_modules = [label for key, label in opt_labels.items() if (options or {}).get(key, False)]
-
-	# 1. DETAILS (CLEAN INLINE TEXT FOR INFO.JSON)
-	if active_modules:
-		desc_str = f"ACTIVE MODULES: {', '.join(active_modules)}."
-	else:
-		desc_str = "Vanilla True Mod - Custom Build."
+	desc_str = f"ACTIVE MODULES: {', '.join(active_modules)}." if active_modules else "Vanilla True Mod - Custom Build."
 
 	metadata = {
 		"Name": "Vanilla True Mod",
@@ -2467,10 +2347,11 @@ def create_standalone_fantome(
 		"Version": APP_VERSION,
 		"Description": desc_str,
 		"License": "CC-BY-NC-SA-4.0",
+		"Tags": ["Vanilla","Restoration"],
+		"Categories": ["Vanilla","Restoration"],
 	}
 	info_json_bytes = json.dumps(metadata, indent=2, ensure_ascii=False).encode("utf-8")
 
-	# 2. README (MARKDOWN)
 	readme_md = f"""### 📖 Overview
 A surgical, zero-bloat restoration mod that brings League of Legends back to its canonical **Vanilla** state using strictly native engine declarations and memory graphs.
 
@@ -2479,17 +2360,16 @@ A surgical, zero-bloat restoration mod that brings League of Legends back to its
 ### 🌟 Acknowledgements & Dedications
 This project stands on the shoulders of the true pioneers of the League of Legends reverse engineering and modding community:
 
-* **[moonshadow565](https://github.com/moonshadow565)** — Creator of **`ritobin`** and **`lolpytools`**. The foundational genius behind mapping Riot's serialized property types (`PROP`) and enabling surgical, lossless `.bin` memory manipulation.
-* **[Crauzer](https://github.com/Crauzer)** — Head of **`LeagueToolkit`**, **`cslol-manager`**, and the underlying WAD toolchains. The architect who deciphered the `.wad.client` archive format and paved the way for modern LoL asset extraction.
-* **[CommunityDragon](https://github.com/CommunityDragon)** — For the continuous open-source maintenance of game hash tables (`hashes.game.txt`), bin hashes, and type registries.
+* **[moonshadow565](https://github.com/moonshadow565)** — Creator of **`ritobin`** and **`lolpytools`**.
+* **[Crauzer](https://github.com/Crauzer)** — Head of **`LeagueToolkit`**, **`cslol-manager`**, and WAD toolchains.
+* **[CommunityDragon](https://github.com/CommunityDragon)** — For continuous maintenance of game hash tables.
 
 ---
 
 Compiled and packaged via **[Vanilla True Builder](https://github.com/gsmeven/vanilla-true-builder)** by **[Neve](https://github.com/gsmeven)**.
 """
 
-	# 3. LICENSE (OFFICIAL CC-BY-NC-SA-4.0)
-	license_text = """Copyright (C) 2026 Neve (https://github.com/gsmeven/vanilla-true-builder)
+	license_text = """Copyright (C) 2026 Neve — Vanilla True Builder
 	
 Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
 Full Terms: https://creativecommons.org/licenses/by-nc-sa/4.0/
@@ -2563,16 +2443,10 @@ League of Legends and all related game assets belong to Riot Games, Inc.
 				break
 
 		with zipfile.ZipFile(fantome_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-			# Details
 			archive.writestr("META/info.json", info_json_bytes)
-			
-			# Readme (English)
 			archive.writestr("META/README.md", readme_md.encode("utf-8"))
-			
-			# Licenses
 			archive.writestr("META/LICENSE", license_text.encode("utf-8"))
 
-			# Visual
 			if preview_img:
 				archive.write(preview_img, "META/image.png")
 				archive.write(preview_img, "META/icon.png")
@@ -2583,6 +2457,942 @@ League of Legends and all related game assets belong to Riot Games, Inc.
 					progress_callback(index / total_entries, "Package", f"({index}/{total_entries})", arcname)
 
 	return fantome_path
+
+
+def _resolve_entity_to_champion_wad(entity: str, champion_wads: list[Path]) -> Path | None:
+	ent_lower = entity.lower()
+	for wad in champion_wads:
+		c_name = wad.name.split(".")[0].lower()
+		if c_name == ent_lower:
+			return wad
+	for wad in champion_wads:
+		c_name = wad.name.split(".")[0].lower()
+		if ent_lower.startswith(c_name) or c_name.startswith(ent_lower):
+			return wad
+	for wad in champion_wads:
+		c_name = wad.name.split(".")[0].lower()
+		if len(c_name) >= 5 and c_name[:5] in ent_lower:
+			return wad
+	return None
+
+	# ==============================================================================
+# LEAGUETOOLKIT (LTK) NATIVE MOD PROJECT BUILDERS (8 LAYERS)
+# ==============================================================================
+def init_mod_project_structure(
+	project_dir: Path,
+	workspace_root: Path = DEFAULT_WORKSPACE_ROOT,
+	options: dict[str, bool] | None = None,
+) -> None:
+	if project_dir.exists():
+		shutil.rmtree(project_dir, ignore_errors=True)
+	project_dir.mkdir(parents=True, exist_ok=True)
+
+	layer_names = [
+		("base", 0, "Base transparent textures"),
+		("champions", 10, "Champion skins vanilla normalization"),
+		("structures", 20, "Canonical structure models and rubble"),
+		("minions", 30, "Canonical faction minion silhouettes"),
+		("wards", 40, "Vision wards and trinkets normalization"),
+		("accents", 50, "Map clutter and trophy neutralization"),
+		("finishers", 60, "Victory/Defeat cinematic finishers neutralization"),
+		("recalls", 70, "Special recall overlays normalization"),
+	]
+
+	layers_payload = []
+	for name, priority, desc in layer_names:
+		(project_dir / "content" / name).mkdir(parents=True, exist_ok=True)
+		layers_payload.append({
+			"name": name,
+			"priority": priority,
+			"description": desc,
+		})
+
+	desc_str = "Select your desired modules below in 'Layers' to restore them to Vanilla."
+
+	search_dirs = [workspace_root]
+	if hasattr(sys, "_MEIPASS"):
+		search_dirs.insert(0, Path(getattr(sys, "_MEIPASS")))
+
+	art_icon = None
+	art_image = None
+	for s_dir in search_dirs:
+		for img_name in ("preview.png", "preview.jpg", "preview.jpeg", "banner.png", "image.png", "icon.png"):
+			cand = s_dir / img_name
+			if cand.is_file():
+				try:
+					ext = cand.suffix.lower()
+					art_icon = f"icon{ext}"
+					art_image = f"image{ext}"
+					shutil.copy2(cand, project_dir / art_icon)
+					shutil.copy2(cand, project_dir / art_image)
+					for meta_folder in ("meta", "META"):
+						meta_dir = project_dir / meta_folder
+						meta_dir.mkdir(parents=True, exist_ok=True)
+						shutil.copy2(cand, project_dir / art_icon)
+						shutil.copy2(cand, project_dir / art_image)
+						shutil.copy2(cand, project_dir / f"thumbnail{ext}")
+					break
+				except Exception:
+					pass
+		if art_icon:
+			break
+
+	semver = APP_VERSION.lstrip("v")
+	manifest = {
+		"name": "vanilla-true",
+		"display_name": "Vanilla True Mod",
+		"version": semver,
+		"description": desc_str,
+		"authors": ["Neve"],
+		"license": "CC-BY-NC-SA-4.0",
+		"tags": ["Vanilla","Restoration"],
+		"layers": layers_payload,
+	}
+
+	if art_icon and art_image:
+		manifest["thumbnail"] = f"thumbnail{ext}"
+		manifest["icon"] = art_icon
+		manifest["image"] = art_image
+
+	(project_dir / "mod.config.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+	(project_dir / ".modignore").write_text("*.tmp\n*.bak\n.git*\nThumbs.db\n.hash\n", encoding="utf-8")
+
+	readme_md = f"""### 📖 Overview
+A surgical, zero-bloat restoration mod that brings League of Legends back to its canonical **Vanilla** state using strictly native engine declarations and memory graphs.
+
+---
+
+### 🌟 Acknowledgements & Dedications
+This project stands on the shoulders of the true pioneers of the League of Legends reverse engineering and modding community:
+
+* **[moonshadow565](https://github.com/moonshadow565)** — Creator of **`ritobin`** and **`lolpytools`**.
+* **[Crauzer](https://github.com/Crauzer)** — Head of **`LeagueToolkit`**, **`cslol-manager`**, and WAD toolchains.
+* **[CommunityDragon](https://github.com/CommunityDragon)** — For continuous maintenance of game hash tables.
+
+---
+
+Compiled and packaged via **[Vanilla True Builder](https://github.com/gsmeven/vanilla-true-builder)** by **[Neve](https://github.com/gsmeven)**.
+"""
+	(project_dir / "README.md").write_text(readme_md, encoding="utf-8")
+
+	license_text = """Copyright (C) 2026 Neve — Vanilla True Builder
+
+Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
+Full Terms: https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+Permissions & Conditions:
+• Attribution (BY): Credit the author (Neve) and link to the upstream repository.
+• Non-Commercial (NC): Commercial use, monetization, paywalls, or resale are strictly prohibited.
+• Share-Alike (SA): Any modifications, updates, or derivative builds must inherit this exact license.
+
+Disclaimer:
+Provided "AS IS", without warranties of any kind. Unofficial community project;
+League of Legends and all related game assets belong to Riot Games, Inc.
+"""
+	(project_dir / "LICENSE").write_text(license_text, encoding="utf-8")
+	(project_dir / "LICENSE.md").write_text(license_text, encoding="utf-8")
+
+	for meta_folder in ("meta", "META"):
+		meta_dir = project_dir / meta_folder
+		meta_dir.mkdir(parents=True, exist_ok=True)
+		(meta_dir / "LICENSE").write_text(license_text, encoding="utf-8")
+		(meta_dir / "README.md").write_text(readme_md, encoding="utf-8")
+
+
+def build_layer_base(project_dir: Path) -> None:
+	content_base = project_dir / "content" / "base"
+	for wad_name in ("Global.wad.client", "Map11.wad.client"):
+		tex_dest = content_base / wad_name / "assets" / "transparent.tex"
+		tex_dest.parent.mkdir(parents=True, exist_ok=True)
+		tex_dest.write_bytes(RAW_TRANSPARENT_TEX_BYTES)
+
+# ==============================================================================
+# WAD TABLE OF CONTENTS (TOC) READER
+# ==============================================================================
+def _xxh64(data: bytes, seed: int = 0) -> int:
+	MASK64 = 0xFFFFFFFFFFFFFFFF
+	PRIME1, PRIME2, PRIME3, PRIME4, PRIME5 = (
+		0x9E3779B185EBCA87, 0xC2B2AE3D27D4EB4F, 0x165667B19E3779F9, 0x85EBCA77C2B2AE63, 0x27D4EB2F165667C5
+	)
+	def _rotl(x, r): return ((x << r) | (x >> (64 - r))) & MASK64
+
+	length = len(data)
+	if length >= 32:
+		v1 = (seed + PRIME1 + PRIME2) & MASK64
+		v2 = (seed + PRIME2) & MASK64
+		v3 = seed & MASK64
+		v4 = (seed - PRIME1) & MASK64
+		offset = 0
+		while offset <= length - 32:
+			k1, k2, k3, k4 = struct.unpack_from("<QQQQ", data, offset)
+			v1 = _rotl((v1 + k1 * PRIME2) & MASK64, 31) * PRIME1 & MASK64
+			v2 = _rotl((v2 + k2 * PRIME2) & MASK64, 31) * PRIME1 & MASK64
+			v3 = _rotl((v3 + k3 * PRIME2) & MASK64, 31) * PRIME1 & MASK64
+			v4 = _rotl((v4 + k4 * PRIME2) & MASK64, 31) * PRIME1 & MASK64
+			offset += 32
+		h64 = (_rotl(v1, 1) + _rotl(v2, 7) + _rotl(v3, 12) + _rotl(v4, 18)) & MASK64
+		for v in (v1, v2, v3, v4):
+			v = _rotl(v * PRIME2 & MASK64, 31) * PRIME1 & MASK64
+			h64 = (h64 ^ v) * PRIME1 + PRIME4 & MASK64
+	else:
+		h64 = (seed + PRIME5) & MASK64
+		offset = 0
+
+	h64 = (h64 + length) & MASK64
+	while offset <= length - 8:
+		k1 = struct.unpack_from("<Q", data, offset)[0]
+		h64 = (_rotl(h64 ^ (_rotl(k1 * PRIME2 & MASK64, 31) * PRIME1 & MASK64), 27) * PRIME1 + PRIME4) & MASK64
+		offset += 8
+	if offset <= length - 4:
+		k1 = struct.unpack_from("<I", data, offset)[0]
+		h64 = (_rotl(h64 ^ (k1 * PRIME1 & MASK64), 23) * PRIME2 + PRIME3) & MASK64
+		offset += 4
+	while offset < length:
+		h64 = (_rotl(h64 ^ (data[offset] * PRIME5 & MASK64), 11) * PRIME1) & MASK64
+		offset += 1
+
+	h64 = (h64 ^ (h64 >> 33)) * PRIME2 & MASK64
+	h64 = (h64 ^ (h64 >> 29)) * PRIME3 & MASK64
+	return (h64 ^ (h64 >> 32)) & MASK64
+
+
+def scan_wad_existing_skins(wad_path: Path, champ_name: str, max_check: int = 80) -> list[int]:
+	champ_lower = champ_name.lower()
+	try:
+		with open(wad_path, "rb") as f:
+			header = f.read(4)
+			if len(header) < 4:
+				return []
+			magic, major = struct.unpack_from("<2sB", header, 0)
+			if magic != b"RW" or major != 3:
+				return []
+
+			# Pula assinatura ECDSA (256 bytes) + Checksum (8 bytes) = 268 bytes
+			f.seek(268)
+			entry_count = struct.unpack("<I", f.read(4))[0]
+			toc_raw = f.read(entry_count * 32)
+			wad_hashes = {
+				struct.unpack_from("<Q", toc_raw, i * 32)[0]
+				for i in range(len(toc_raw) // 32)
+			}
+
+		found_skins = []
+		for s_id in range(1, max_check + 1):
+			path_str = f"data/characters/{champ_lower}/skins/skin{s_id}.bin"
+			if _xxh64(path_str.encode("utf-8")) in wad_hashes:
+				found_skins.append(s_id)
+		return found_skins
+	except Exception:
+		return []
+
+def build_layer_champions(
+	champion_wads: list[Path],
+	project_dir: Path,
+	tools: dict,
+	workspace_root: Path,
+	dry_run: bool = False,
+	progress_callback: Callable[[float, str, str], None] | None = None,
+) -> None:
+	content_champ = project_dir / "content" / "champions"
+	cache_dir = tools.get("cache_dir", workspace_root / "cache")
+	script_hash = _script_fingerprint()
+
+	yaml_declarations: list[str] = [
+		"version: 1",
+		"modules:",
+		"  - entries:",
+	]
+
+	total = len(champion_wads)
+	if not total:
+		return
+
+	overrides_dir = workspace_root / "overrides"
+	active_overrides_by_wad: dict[str, list[tuple[str, int, Path]]] = {}
+	chroma_inheritance_by_wad: dict[str, dict[int, Path]] = {}
+
+	if overrides_dir.is_dir():
+		for tpl_file in overrides_dir.rglob("skin*.bin.txt"):
+			if tpl_file.stat().st_size == 0:
+				continue
+			ent_name = tpl_file.parent.parent.name.lower()
+			if ent_name in ("characters", "data"):
+				ent_name = tpl_file.parent.parent.parent.name.lower()
+			if ent_name == "global":
+				continue
+
+			m_sid = re.search(r"skin(\d+)", tpl_file.name, re.IGNORECASE)
+			if not m_sid:
+				continue
+			sid = int(m_sid.group(1))
+
+			target_wad = _resolve_entity_to_champion_wad(ent_name, champion_wads)
+			if target_wad:
+				wad_key = target_wad.name.lower()
+				active_overrides_by_wad.setdefault(wad_key, []).append((ent_name, sid, tpl_file))
+
+				try:
+					hdr = tpl_file.read_text(encoding="utf-8", errors="ignore")[:400]
+					m_var = re.search(r'(?i)#\s*VARIANTS\s*:\s*([^\r\n]+)', hdr)
+					if m_var:
+						chroma_map = chroma_inheritance_by_wad.setdefault(wad_key, {})
+						for token in m_var.group(1).split(","):
+							t = token.strip()
+							if "-" in t:
+								start, end = map(int, t.split("-"))
+								for cid in range(start, end + 1):
+									chroma_map[cid] = tpl_file
+							elif t.isdigit():
+								chroma_map[int(t)] = tpl_file
+				except OSError:
+					pass
+
+	for index, wad_path in enumerate(champion_wads, start=1):
+		wad_key = wad_path.name.lower()
+		champ_name = wad_path.name.split(".")[0].lower()
+		champ_cap = champ_name.capitalize()
+		counter_str = f"({index}/{total})"
+
+		real_skins = scan_wad_existing_skins(wad_path, champ_name)
+
+		wad_overrides = active_overrides_by_wad.get(wad_key, [])
+		wad_chromas = chroma_inheritance_by_wad.get(wad_key, {})
+		has_overrides = bool(wad_overrides or wad_chromas)
+
+		if not has_overrides:
+			for skin_id in real_skins:
+				yaml_declarations.extend([
+					f"      Characters/{champ_cap}/Skins/Skin{skin_id}:",
+					f"        skinMeshProperties: !ref Characters/{champ_cap}/Skins/Skin0:skinMeshProperties",
+					f"        skinAnimationProperties: !ref Characters/{champ_cap}/Skins/Skin0:skinAnimationProperties",
+					f"        mContextualActionData: !ref Characters/{champ_cap}/Skins/Skin0:mContextualActionData",
+					f"        skinAudioProperties: !ref Characters/{champ_cap}/Skins/Skin0:skinAudioProperties",
+					f"        iconCircle: !ref Characters/{champ_cap}/Skins/Skin0:iconCircle",
+					f"        healthBarData: !ref Characters/{champ_cap}/Skins/Skin0:healthBarData",
+					f"        mResourceResolver: !ref Characters/{champ_cap}/Skins/Skin0:mResourceResolver",
+				])
+			if progress_callback:
+				progress_callback(index / total, counter_str, f"{wad_path.name} › Declarations")
+			continue
+
+		wad_hash = file_fingerprint(wad_path)
+		wad_cache_dir = get_canonical_cache_dir(cache_dir, wad_path)
+		processed_skins = {sid for _, sid, _ in wad_overrides} | set(wad_chromas.keys())
+
+		def append_declarative_non_overridden():
+			for s_num in real_skins:
+				if s_num not in processed_skins:
+					yaml_declarations.extend([
+						f"      Characters/{champ_cap}/Skins/Skin{s_num}:",
+						f"        skinMeshProperties: !ref Characters/{champ_cap}/Skins/Skin0:skinMeshProperties",
+						f"        skinAnimationProperties: !ref Characters/{champ_cap}/Skins/Skin0:skinAnimationProperties",
+						f"        mContextualActionData: !ref Characters/{champ_cap}/Skins/Skin0:mContextualActionData",
+						f"        skinAudioProperties: !ref Characters/{champ_cap}/Skins/Skin0:skinAudioProperties",
+						f"        iconCircle: !ref Characters/{champ_cap}/Skins/Skin0:iconCircle",
+						f"        healthBarData: !ref Characters/{champ_cap}/Skins/Skin0:healthBarData",
+						f"        mResourceResolver: !ref Characters/{champ_cap}/Skins/Skin0:mResourceResolver",
+					])
+
+		if _is_cache_valid(wad_cache_dir, wad_hash, script_hash) and not dry_run:
+			dest_champ_wad_dir = content_champ / wad_path.name
+			for cached_file in wad_cache_dir.rglob("*"):
+				if cached_file.is_file() and cached_file.name != ".hash" and not cached_file.name.endswith(".txt"):
+					rel = cached_file.relative_to(wad_cache_dir)
+					dest_f = dest_champ_wad_dir / rel
+					dest_f.parent.mkdir(parents=True, exist_ok=True)
+					shutil.copy2(cached_file, dest_f)
+
+			append_declarative_non_overridden()
+			if progress_callback:
+				progress_callback(index / total, counter_str, f"{wad_path.name} › Cache")
+			continue
+
+		with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix=f"vtb_triage_{champ_name}_") as tmp_str:
+			tmp_dir = Path(tmp_str)
+
+			if progress_callback:
+				progress_callback(index / total, counter_str, f"{wad_path.name} › Extracting base")
+
+			extract_wad(
+				wad_path,
+				tmp_dir,
+				tools=tools,
+				filter_type=None,
+				filter_pattern=r"(?i)(skins/skin\d+\.bin$|skins/base/.*\.skn$)",
+				dry_run=dry_run,
+				progress_callback=lambda st: progress_callback(index / total, counter_str, f"{wad_path.name} › {Path(st).name}") if progress_callback else None,
+			)
+
+			discovered_bins: list[Path] = list(tmp_dir.rglob("*.bin"))
+			base_bins: dict[str, Path] = {}
+			for b in discovered_bins:
+				if b.stem.lower() == "skin0":
+					ent = b.parent.parent.name.lower()
+					base_bins[ent] = b
+
+			base_texts: dict[str, str] = {}
+			for ent, b_file in base_bins.items():
+				b_txt = b_file.with_suffix(".bin.txt")
+				run_cmd(build_ritobin_cmd(tools["ritobin"], "decompile", b_file, b_txt, tools.get("hashes_dir")), dry_run=dry_run)
+				if b_txt.is_file():
+					base_texts[ent] = b_txt.read_text(encoding="utf-8", errors="ignore")
+
+			base_skn_list = list(tmp_dir.rglob("*.skn"))
+			real_base_skn = base_skn_list[0] if base_skn_list else None
+
+			if not dry_run:
+				wad_cache_dir.mkdir(parents=True, exist_ok=True)
+			cached_files_count = 0
+
+			for ent_name, skin_id, tpl_file in wad_overrides:
+				if progress_callback:
+					progress_callback(index / total, counter_str, f"{wad_path.name} › Curated Skin{skin_id}")
+
+				raw_template = tpl_file.read_text(encoding="utf-8", errors="ignore")
+
+				m_alias = re.search(r'(?i)#\s*SUBMESH_ALIAS\s*:\s*(\S+)\s*->\s*([^\r\n]+)', raw_template)
+				if m_alias and real_base_skn and not dry_run:
+					old_sub = m_alias.group(1).strip()
+					new_sub = m_alias.group(2).strip()
+					patched_bytes = patch_skn_submesh_inplace(real_base_skn.read_bytes(), old_sub, new_sub)
+					patched_name = f"{ent_name.capitalize()}_Skin{skin_id}.skn"
+					rel_skn_path = Path("assets") / "characters" / ent_name / "skins" / "base" / patched_name
+
+					dest_skn = content_champ / wad_path.name / rel_skn_path
+					dest_skn.parent.mkdir(parents=True, exist_ok=True)
+					dest_skn.write_bytes(patched_bytes)
+
+					cache_skn = wad_cache_dir / rel_skn_path
+					cache_skn.parent.mkdir(parents=True, exist_ok=True)
+					cache_skn.write_bytes(patched_bytes)
+					cached_files_count += 1
+
+					if progress_callback:
+						progress_callback(index / total, counter_str, f"{wad_path.name} › SKN Alias {old_sub}")
+
+				clean_lines = [
+					l for l in raw_template.splitlines()
+					if not (l.strip().startswith("#") and not l.strip().startswith("#PROP"))
+				]
+				live_base = base_texts.get(ent_name, base_texts.get(champ_name, ""))
+				synced_content = sync_template_linked_block("\n".join(clean_lines), live_base)
+
+				tmp_txt = tmp_dir / f"{ent_name}_skin{skin_id}_synced.bin.txt"
+				tmp_txt.write_text(synced_content, encoding="utf-8")
+				tmp_out_bin = tmp_dir / f"{ent_name}_skin{skin_id}.bin"
+
+				run_cmd(build_ritobin_cmd(tools["ritobin"], "recompile", tmp_txt, tmp_out_bin, tools.get("hashes_dir")), dry_run=dry_run)
+				if not dry_run and tmp_out_bin.is_file():
+					rel_bin_path = Path("data") / "characters" / ent_name / "skins" / f"skin{skin_id}.bin"
+
+					dest_bin = content_champ / wad_path.name / rel_bin_path
+					dest_bin.parent.mkdir(parents=True, exist_ok=True)
+					shutil.copy2(tmp_out_bin, dest_bin)
+
+					cache_bin = wad_cache_dir / rel_bin_path
+					cache_bin.parent.mkdir(parents=True, exist_ok=True)
+					shutil.copy2(tmp_out_bin, cache_bin)
+					cached_files_count += 1
+
+			for cid, parent_tpl in wad_chromas.items():
+				if progress_callback:
+					progress_callback(index / total, counter_str, f"{wad_path.name} › Chroma {cid}")
+
+				parent_raw = parent_tpl.read_text(encoding="utf-8", errors="ignore")
+				ent_name = parent_tpl.parent.parent.name.lower()
+				clean_parent = "\n".join([
+					l for l in parent_raw.splitlines()
+					if not (l.strip().startswith("#") and not l.strip().startswith("#PROP"))
+				])
+				live_base = base_texts.get(ent_name, base_texts.get(champ_name, ""))
+				synced_parent = sync_template_linked_block(clean_parent, live_base)
+				reverted_text = fast_vanilla_revert(synced_parent, f"Skin{cid}", str(cid))
+
+				tmp_txt = tmp_dir / f"{ent_name}_skin{cid}_variant.bin.txt"
+				tmp_txt.write_text(reverted_text, encoding="utf-8")
+				tmp_out_bin = tmp_dir / f"{ent_name}_skin{cid}.bin"
+
+				run_cmd(build_ritobin_cmd(tools["ritobin"], "recompile", tmp_txt, tmp_out_bin, tools.get("hashes_dir")), dry_run=dry_run)
+				if not dry_run and tmp_out_bin.is_file():
+					rel_bin_path = Path("data") / "characters" / ent_name / "skins" / f"skin{cid}.bin"
+
+					dest_bin = content_champ / wad_path.name / rel_bin_path
+					dest_bin.parent.mkdir(parents=True, exist_ok=True)
+					shutil.copy2(tmp_out_bin, dest_bin)
+
+					cache_bin = wad_cache_dir / rel_bin_path
+					cache_bin.parent.mkdir(parents=True, exist_ok=True)
+					shutil.copy2(tmp_out_bin, cache_bin)
+					cached_files_count += 1
+
+			append_declarative_non_overridden()
+
+			if not dry_run and cached_files_count > 0:
+				_write_cache_hash(wad_cache_dir, wad_hash, script_hash)
+
+		if progress_callback:
+			progress_callback(index / total, counter_str, f"{wad_path.name} › OK")
+
+	if len(yaml_declarations) > 3 and not dry_run:
+		yaml_path = content_champ / "game_data.yaml"
+		yaml_path.write_text("\n".join(yaml_declarations) + "\n", encoding="utf-8")
+
+
+def build_layer_structures(project_dir: Path) -> None:
+	content_struct = project_dir / "content" / "structures"
+	yaml_lines = [
+		"version: 1",
+		"modules:",
+		"  - entries:",
+	]
+	for s_id in range(4, 32):
+		base_target = s_id % 4
+		yaml_lines.extend([
+			f"      Characters/Turret/Skins/Skin{s_id}:",
+			f"        skinMeshProperties: !ref Characters/Turret/Skins/Skin{base_target}:skinMeshProperties",
+			f"        skinAnimationProperties: !ref Characters/Turret/Skins/Skin{base_target}:skinAnimationProperties",
+			f"        mResourceResolver: !ref Characters/Turret/Skins/Skin{base_target}:mResourceResolver",
+		])
+	for s_id in range(2, 16):
+		base_target = 1 if (s_id % 2 == 1) else 0
+		yaml_lines.extend([
+			f"      Characters/TurretRubble/Skins/Skin{s_id}:",
+			f"        skinMeshProperties: !ref Characters/TurretRubble/Skins/Skin{base_target}:skinMeshProperties",
+			f"        skinAnimationProperties: !ref Characters/TurretRubble/Skins/Skin{base_target}:skinAnimationProperties",
+		])
+	(content_struct / "game_data.yaml").write_text("\n".join(yaml_lines) + "\n", encoding="utf-8")
+
+
+def build_layer_minions(project_dir: Path) -> None:
+	content_minions = project_dir / "content" / "minions"
+	minion_types = ["melee", "ranged", "siege", "super"]
+	yaml_lines = [
+		"version: 1",
+		"modules:",
+		"  - entries:",
+	]
+	for m_type in minion_types:
+		for s_id in range(2, 12):
+			yaml_lines.extend([
+				f"      Characters/sru_orderminion{m_type}/Skins/Skin{s_id}:",
+				f"        skinMeshProperties: !ref Characters/sru_orderminion{m_type}/Skins/Skin0:skinMeshProperties",
+				f"        skinAnimationProperties: !ref Characters/sru_orderminion{m_type}/Skins/Skin0:skinAnimationProperties",
+				f"      Characters/sru_chaosminion{m_type}/Skins/Skin{s_id}:",
+				f"        skinMeshProperties: !ref Characters/sru_chaosminion{m_type}/Skins/Skin1:skinMeshProperties",
+				f"        skinAnimationProperties: !ref Characters/sru_chaosminion{m_type}/Skins/Skin1:skinAnimationProperties",
+			])
+	(content_minions / "game_data.yaml").write_text("\n".join(yaml_lines) + "\n", encoding="utf-8")
+
+
+def build_layer_wards(
+	project_dir: Path,
+	tools: dict,
+	dry_run: bool = False,
+) -> None:
+	content_wards = project_dir / "content" / "wards"
+	yaml_lines = [
+		"version: 1",
+		"modules:",
+		"  - entries:",
+	]
+	for s_id in range(1, 100):
+		yaml_lines.extend([
+			f"      Characters/SightWard/Skins/Skin{s_id}:",
+			f"        skinMeshProperties: !ref Characters/SightWard/Skins/Skin0:skinMeshProperties",
+			f"        skinAnimationProperties: !ref Characters/SightWard/Skins/Skin0:skinAnimationProperties",
+			f"        mResourceResolver: !ref Characters/SightWard/Skins/Skin0:mResourceResolver",
+		])
+	if not dry_run:
+		(content_wards / "game_data.yaml").write_text("\n".join(yaml_lines) + "\n", encoding="utf-8")
+
+	trinket_sample = (
+		'#PROP_text\n'
+		'type: string = "PROP"\n'
+		'version: u32 = 3\n'
+		'linked: list[string] = {}\n'
+		'entries: map[hash,embed] = {\n'
+		'    "Characters/YellowTrinket/Skins/Skin1" = SkinCharacterDataProperties {\n'
+		'        championSkinName: string = "YellowTrinketBase"\n'
+		'    }\n'
+		'}\n'
+	)
+	with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix="vtb_trinket_") as tmp_str:
+		tmp_txt = Path(tmp_str) / "skin1.bin.txt"
+		tmp_bin = Path(tmp_str) / "skin1.bin"
+		tmp_txt.write_text(trinket_sample, encoding="utf-8")
+		run_cmd(build_ritobin_cmd(tools["ritobin"], "recompile", tmp_txt, tmp_bin, tools.get("hashes_dir")), dry_run=dry_run)
+		if not dry_run and tmp_bin.is_file():
+			for trinket_name in ("yellowtrinket", "bluetrinket", "jammerdevice"):
+				dest = content_wards / "Map11.wad.client" / "data" / "characters" / trinket_name / "skins" / "skin1.bin"
+				dest.parent.mkdir(parents=True, exist_ok=True)
+				shutil.copy2(tmp_bin, dest)
+
+
+def build_layer_accents(
+	map_wad: Path,
+	project_dir: Path,
+	tools: dict,
+	dry_run: bool = False,
+	progress_callback: Callable[[float, str, str, str], None] | None = None,
+	scheduler: ProgressScheduler | None = None,
+) -> None:
+	content_accents = project_dir / "content" / "accents"
+
+	def emit(sub_pct: float, phase: str, status: str, cur: str = ""):
+		if progress_callback and scheduler:
+			progress_callback(scheduler.pct("map11", sub_pct), phase, status, cur)
+
+	if map_wad.is_file():
+		with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix="vtb_accents_map11_") as tmp_str:
+			tmp_dir = Path(tmp_str)
+			emit(0.65, "Map11: Extract", "", f"Extracting {map_wad.name}...")
+			extract_wad(
+				map_wad,
+				tmp_dir,
+				tools=tools,
+				filter_type=None,
+				filter_pattern=r"(?i)base_srx\.materials\.bin$",
+				dry_run=dry_run,
+				progress_callback=lambda st: emit(0.68, "Map11: Extract", "", f"{map_wad.name} › {Path(st).name}"),
+			)
+
+			decompile_bin_files(
+				tmp_dir,
+				tools,
+				dry_run=dry_run,
+				parallel=False,
+				progress_callback=lambda i, tot, n: emit(0.70 + (i / max(tot, 1)) * 0.05, "Map11: Decompile", f"({i}/{tot})", f"{map_wad.name} › {n}"),
+			)
+
+			cleaned = clean_map_elements(
+				tmp_dir,
+				dry_run=dry_run,
+				progress_callback=lambda i, tot, n: emit(0.75 + (i / max(tot, 1)) * 0.10, "Map11: Sanitize", f"({i}/{tot})", f"{map_wad.name} › {n}"),
+			)
+
+			if cleaned:
+				recompile_text_to_bin(
+					tmp_dir,
+					tools,
+					dry_run=dry_run,
+					file_selector=lambda _: cleaned,
+					parallel=False,
+					progress_callback=lambda i, tot, n: emit(0.85 + (i / max(tot, 1)) * 0.10, "Map11: Recompile", f"({i}/{tot})", f"{map_wad.name} › {n}"),
+				)
+				if not dry_run:
+					for cl_txt in cleaned:
+						out_bin = cl_txt.with_name(cl_txt.name[:-4])
+						if out_bin.is_file():
+							rel = out_bin.relative_to(tmp_dir)
+							dest_mat = content_accents / "Map11.wad.client" / rel
+							dest_mat.parent.mkdir(parents=True, exist_ok=True)
+							shutil.copy2(out_bin, dest_mat)
+
+
+def build_layer_global_banners(
+	global_wad: Path,
+	project_dir: Path,
+	tools: dict,
+	dry_run: bool = False,
+	progress_callback: Callable[[float, str, str, str], None] | None = None,
+	scheduler: ProgressScheduler | None = None,
+) -> None:
+	content_accents = project_dir / "content" / "accents"
+
+	def emit(sub_pct: float, phase: str, status: str, cur: str = ""):
+		if progress_callback and scheduler:
+			progress_callback(scheduler.pct("ui", sub_pct), phase, status, cur)
+
+	if global_wad.is_file():
+		with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix="vtb_accents_global_") as tmp_str:
+			tmp_dir = Path(tmp_str)
+			emit(0.60, "GLOBAL.WAD: Extract", "", f"Scanning {global_wad.name} banners...")
+			extract_wad(
+				global_wad,
+				tmp_dir,
+				tools=tools,
+				filter_type=None,
+				filter_pattern=r"(?i)(loadouts/summonerbanners|loadouts/summonertrophies)",
+				dry_run=dry_run,
+				progress_callback=lambda st: emit(0.63, "GLOBAL.WAD: Extract", "", f"Banners › {Path(st).name}"),
+			)
+
+			decompile_bin_files(
+				tmp_dir,
+				tools,
+				dry_run=dry_run,
+				parallel=False,
+				progress_callback=lambda i, tot, n: emit(0.66 + (i / max(tot, 1)) * 0.04, "GLOBAL.WAD: Decompile", f"({i}/{tot})", f"Banner › {n}"),
+			)
+
+			cleaned_banners = clean_summoner_elements(
+				tmp_dir,
+				dry_run=dry_run,
+				progress_callback=lambda i, tot, n: emit(0.72 + (i / max(tot, 1)) * 0.04, "GLOBAL.WAD: Banners", f"({i}/{tot})", f"{global_wad.name} › {n}"),
+			)
+
+			if cleaned_banners:
+				recompile_text_to_bin(
+					tmp_dir,
+					tools,
+					dry_run=dry_run,
+					file_selector=lambda _: cleaned_banners,
+					parallel=False,
+					progress_callback=lambda i, tot, n: emit(0.80 + (i / max(tot, 1)) * 0.04, "GLOBAL.WAD: Recompile", f"({i}/{tot})", f"Banner › {n}"),
+				)
+				if not dry_run:
+					for cl_txt in cleaned_banners:
+						out_bin = cl_txt.with_name(cl_txt.name[:-4])
+						if out_bin.is_file():
+							rel = out_bin.relative_to(tmp_dir)
+							dest_banner = content_accents / "Global.wad.client" / rel
+							dest_banner.parent.mkdir(parents=True, exist_ok=True)
+							shutil.copy2(out_bin, dest_banner)
+
+
+def build_layer_finishers(project_dir: Path) -> None:
+	content_fin = project_dir / "content" / "finishers"
+	yaml_lines = [
+		"version: 1",
+		"modules:",
+		"  - entries:",
+		"      UICrepeChaos:",
+		"        disabled: true",
+		"        m_Enabled: false",
+		"      UICrepeOrder:",
+		"        disabled: true",
+		"        m_Enabled: false",
+	]
+	(content_fin / "game_data.yaml").write_text("\n".join(yaml_lines) + "\n", encoding="utf-8")
+
+
+def build_layer_recalls(
+	global_wad: Path,
+	project_dir: Path,
+	tools: dict,
+	workspace_root: Path,
+	dry_run: bool = False,
+	progress_callback: Callable[[float, str, str, str], None] | None = None,
+	scheduler: ProgressScheduler | None = None,
+) -> None:
+	content_recalls = project_dir / "content" / "recalls"
+	if not global_wad.is_file():
+		return
+
+	def emit(sub_pct: float, phase: str, status: str, cur: str = ""):
+		if progress_callback and scheduler:
+			progress_callback(scheduler.pct("ui", sub_pct), phase, status, cur)
+
+	with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix="vtb_recalls_") as tmp_str:
+		tmp_dir = Path(tmp_str)
+		emit(0.85, "GLOBAL.WAD: Extract", "", f"Extracting {global_wad.name} shared recalls...")
+		extract_wad(
+			global_wad,
+			tmp_dir,
+			tools=tools,
+			filter_type=None,
+			filter_pattern=r"(?i)(?:shared|troy|recall).*\.bin$",
+			dry_run=dry_run,
+			progress_callback=lambda st: emit(0.87, "GLOBAL.WAD: Extract", "", f"Recalls › {Path(st).name}"),
+		)
+
+		decompile_bin_files(
+			tmp_dir,
+			tools,
+			dry_run=dry_run,
+			parallel=False,
+			progress_callback=lambda i, tot, n: emit(0.89, "GLOBAL.WAD: Decompile", f"({i}/{tot})", f"{global_wad.name} › {n}"),
+		)
+
+		cleaned = clean_recall_elements(
+			tmp_dir,
+			workspace_root=workspace_root,
+			dry_run=dry_run,
+			progress_callback=lambda i, tot, n: emit(0.92, "GLOBAL.WAD: Recalls", f"({i}/{tot})", f"{global_wad.name} › {n}"),
+		)
+
+		if cleaned:
+			recompile_text_to_bin(
+				tmp_dir,
+				tools,
+				dry_run=dry_run,
+				file_selector=lambda _: cleaned,
+				parallel=False,
+				progress_callback=lambda i, tot, n: emit(0.96, "GLOBAL.WAD: Recompile", f"({i}/{tot})", f"{global_wad.name} › {n}"),
+			)
+			if not dry_run:
+				for cl_txt in cleaned:
+					out_bin = cl_txt.with_name(cl_txt.name[:-4])
+					if out_bin.is_file():
+						rel = out_bin.relative_to(tmp_dir)
+						dest_shared = content_recalls / "Global.wad.client" / rel
+						dest_shared.parent.mkdir(parents=True, exist_ok=True)
+						shutil.copy2(out_bin, dest_shared)
+
+
+def pack_modpkg_project(
+	project_dir: Path,
+	output_dir: Path,
+	tools: dict,
+	progress_callback: Callable[[float, str, str, str], None] | None = None,
+) -> Path:
+	output_dir.mkdir(parents=True, exist_ok=True)
+	league_mod = tools.get("league_mod", tools["tools_dir"] / "league-mod.exe")
+	if not league_mod.is_file():
+		raise FileNotFoundError(f"league-mod.exe not found at {league_mod}")
+
+	config_file = project_dir / "mod.config.json"
+
+	all_files = [p for p in project_dir.rglob("*") if p.is_file() and not p.name.endswith(".tmp")]
+	total = max(1, len(all_files))
+
+	for idx, f in enumerate(all_files, start=1):
+		rel = f.relative_to(project_dir).as_posix()
+		if progress_callback:
+			progress_callback(0.1 + (idx / total) * 0.7, "Package", f"({idx}/{total})", rel)
+
+	def on_cmd_output(line: str):
+		if progress_callback:
+			progress_callback(0.85, "Package", f"({total}/{total})", f"league-mod › {line}")
+
+	cmd = [
+		str(league_mod), "pack",
+		"-c", str(config_file),
+		"-f", "VanillaTrueMod",
+		"-o", str(output_dir),
+		"--format", "modpkg",
+	]
+	run_cmd(cmd, cwd=project_dir, progress_callback=on_cmd_output)
+
+	expected_file = output_dir / "VanillaTrueMod.modpkg"
+	if expected_file.is_file():
+		if progress_callback:
+			progress_callback(1.0, "Package", f"({total}/{total})", expected_file.name)
+		return expected_file
+
+	candidates = list(output_dir.glob("*.modpkg"))
+	if candidates:
+		if progress_callback:
+			progress_callback(1.0, "Package", f"({total}/{total})", candidates[0].name)
+		return candidates[0]
+
+	raise RuntimeError(f"Package output was not created at {output_dir}")
+
+# ==============================================================================
+# DIRECTORY LIFECYCLE & SIGNALS (MAINPROCESS EXCLUSIVE)
+# ==============================================================================
+def cleanup_temp_dirs() -> None:
+	if multiprocessing.current_process().name != "MainProcess":
+		return
+	if DEFAULT_TEMP_DIR.is_dir():
+		try:
+			shutil.rmtree(DEFAULT_TEMP_DIR, ignore_errors=True)
+		except Exception as exc:
+			LOG.warning("Failed to remove temporary workspace %s: %s", DEFAULT_TEMP_DIR, exc)
+
+
+def cleanup_orphaned_temp_dirs() -> None:
+	if multiprocessing.current_process().name != "MainProcess":
+		return
+	if not DEFAULT_TEMP_DIR.is_dir():
+		return
+
+	candidates: list[Path] = []
+	for pattern in ("vanilla_builder_*", "vanilla_fantome_*", "vanilla_map11_*", "vanilla_champ_*", "vanilla_finisher_*", "vtb_*"):
+		candidates.extend(DEFAULT_TEMP_DIR.glob(pattern))
+
+	now = time.time()
+	for temp_dir in sorted({p.resolve() for p in candidates}, key=lambda p: (len(p.parts), str(p))):
+		if not temp_dir.is_dir():
+			continue
+		try:
+			if (now - temp_dir.stat().st_mtime) < 600:
+				continue
+			shutil.rmtree(temp_dir, ignore_errors=True)
+		except OSError as exc:
+			LOG.warning("Could not remove orphaned directory %s: %s", temp_dir, exc)
+
+
+def _handle_interrupt(signum, _frame):
+	if multiprocessing.current_process().name == "MainProcess":
+		LOG.warning("Interrupt received (signal %s). Cleaning workspace...", signum)
+		cleanup_temp_dirs()
+	raise SystemExit(128 + signum)
+
+
+signal.signal(signal.SIGINT, _handle_interrupt)
+if hasattr(signal, "SIGTERM"):
+	signal.signal(signal.SIGTERM, _handle_interrupt)
+
+atexit.register(cleanup_temp_dirs)
+
+
+def resolve_default_paths() -> dict[str, Path | None]:
+	return {
+		"league_root": DEFAULT_LEAGUE_ROOT,
+		"final_dir": DEFAULT_FINAL_DIR,
+		"map_wad": DEFAULT_MAP_WAD,
+		"ui_wad": DEFAULT_UI_WAD,
+		"champions_dir": DEFAULT_CHAMPIONS_DIR,
+		"workspace_root": DEFAULT_WORKSPACE_ROOT,
+		"tools_dir": DEFAULT_WORKSPACE_ROOT / "tools",
+		"project_dir": DEFAULT_PROJECT_DIR,
+	}
+
+
+def setup_workspace(
+	base_dir: Path = Path.cwd(),
+	force_hashes: bool = False,
+	progress_callback: Callable[[str], None] | None = None,
+	sync_tools: bool = True,
+	sync_hashes: bool = True,
+) -> dict:
+	base_dir = Path(base_dir)
+	cleanup_orphaned_temp_dirs()
+	tools_dir = base_dir / "tools"
+
+	if sync_tools:
+		ensure_toolkit_binaries(tools_dir, progress_callback=progress_callback)
+
+	wadtools = tools_dir / "wadtools.exe"
+	ritobin = tools_dir / "ritobin.exe"
+	league_mod = tools_dir / "league-mod.exe"
+	hashes_dir = tools_dir / "hashes"
+
+	if not wadtools.exists():
+		LOG.warning("wadtools.exe not found at %s", wadtools)
+	if not ritobin.exists():
+		LOG.warning("ritobin.exe not found at %s", ritobin)
+	if not league_mod.exists():
+		LOG.warning("league-mod.exe not found at %s", league_mod)
+
+	if sync_hashes:
+		ensure_ritobin_hashes(hashes_dir, force=force_hashes, progress_callback=progress_callback)
+
+	cache_dir = base_dir / "cache"
+	cache_dir.mkdir(parents=True, exist_ok=True)
+
+	overrides_dir = base_dir / "overrides"
+	overrides_dir.mkdir(parents=True, exist_ok=True)
+
+	project_dir = get_temp_workspace() / "VanillaTrue_Project"
+
+	return {
+		"base_dir": base_dir,
+		"workspace_root": base_dir,
+		"tools_dir": tools_dir,
+		"wadtools": wadtools,
+		"ritobin": ritobin,
+		"league_mod": league_mod,
+		"hashes_dir": hashes_dir,
+		"final_dir": DEFAULT_FINAL_DIR,
+		"champions_dir": DEFAULT_CHAMPIONS_DIR,
+		"champion_wads": _iter_champion_wads(),
+		"cache_dir": cache_dir,
+		"overrides_dir": overrides_dir,
+		"project_dir": project_dir,
+	}
+
 
 # ==============================================================================
 # DYNAMIC PROGRESS SCHEDULER
@@ -2633,7 +3443,7 @@ class ProgressScheduler:
 
 
 # ==============================================================================
-# MODULAR PIPELINE ORCHESTRATOR
+# UNIFIED PIPELINE ORCHESTRATOR (DUAL ENGINE: .MODPKG & .FANTOME LEGACY)
 # ==============================================================================
 def build_vanilla_pipeline(
 	map_wad: Path,
@@ -2644,6 +3454,7 @@ def build_vanilla_pipeline(
 	progress_callback: Callable[[float, str, str, str], None] | None = None,
 	cfg: dict | None = None,
 	scheduler: ProgressScheduler | None = None,
+	package_format: str = "modpkg",
 ) -> dict:
 	if cfg is None:
 		cfg = setup_workspace(workspace_root)
@@ -2671,15 +3482,430 @@ def build_vanilla_pipeline(
 	if scheduler is None:
 		scheduler = ProgressScheduler(options, map_wad, ui_wad, champion_wads)
 
-	needs_map = any([opt_accents, opt_wards, opt_structures, opt_minions, opt_finishers, opt_champions]) and map_wad.is_file()
-	cache_dir = cfg["cache_dir"]
-	allowed_wads = set()
-
 	def emit_progress(percent: float, phase: str, status: str, current: str = "") -> None:
 		if progress_callback:
 			progress_callback(percent, phase, status, current)
 
 	try:
+		# ======================================================================
+		# ENGINE 1: NATIVE LTK MODULAR PROJECT PIPELINE (.MODPKG)
+		# ======================================================================
+		if package_format.lower() == "modpkg":
+			project_dir = cfg["project_dir"]
+			global_wad = cfg["final_dir"] / "Global.wad.client"
+			cache_dir = cfg["cache_dir"]
+			script_hash = _script_fingerprint()
+
+			if not dry_run:
+				init_mod_project_structure(project_dir, workspace_root=workspace_root, options=options)
+
+			# 1. MAP11 CONTAINER & SUB-MODULES
+			needs_map = any([opt_accents, opt_wards, opt_structures, opt_minions]) and map_wad.is_file()
+			if needs_map:
+				emit_progress(scheduler.pct("map11", 0.0), "PROCESSING MAP11", "", "Verifying canonical Map11 container...")
+				map11_hash = file_fingerprint(map_wad)
+				map11_cache_dir = get_canonical_cache_dir(cache_dir, map_wad)
+
+				if _is_cache_valid(map11_cache_dir, map11_hash, script_hash) and not dry_run:
+					LOG.info("Reusing Map11 from canonical master cache: %s", map_wad.name)
+					emit_progress(scheduler.pct("map11", 0.5), "Map11: Cache", "", "Valid Map11 master cache reused...")
+					if opt_structures:
+						build_layer_structures(project_dir)
+					if opt_minions:
+						build_layer_minions(project_dir)
+					if opt_wards:
+						build_layer_wards(project_dir, tools=cfg, dry_run=dry_run)
+					if opt_accents:
+						mat_cached = map11_cache_dir / "data" / "maps" / "shipping" / "map11" / "base_srx.materials.bin"
+						if not mat_cached.is_file():
+							mat_candidates = list(map11_cache_dir.rglob("base_srx.materials.bin"))
+							mat_cached = mat_candidates[0] if mat_candidates else None
+						if mat_cached and mat_cached.is_file():
+							rel = mat_cached.relative_to(map11_cache_dir)
+							dest = project_dir / "content" / "accents" / "Map11.wad.client" / rel
+							dest.parent.mkdir(parents=True, exist_ok=True)
+							shutil.copy2(mat_cached, dest)
+				else:
+					with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix="vanilla_map11_") as temp_dir_str:
+						temp_dir = Path(temp_dir_str)
+						emit_progress(scheduler.pct("map11", 0.05), "Map11: Extract", "", f"Extracting binaries from {map_wad.name}...")
+
+						extract_wad(
+							map_wad,
+							temp_dir,
+							cfg,
+							filter_type="bin",
+							dry_run=dry_run,
+							progress_callback=lambda status: emit_progress(scheduler.pct("map11", 0.08), "Map11: Extract", "", status),
+						)
+
+						decompile_bin_files(
+							temp_dir,
+							cfg,
+							dry_run=dry_run,
+							file_selector=_iter_map11_master_vital_bins,
+							parallel=True,
+							progress_callback=lambda idx, tot, name: emit_progress(
+								scheduler.pct("map11", 0.10 + (idx / max(tot, 1)) * 0.20),
+								"Map11: Decompile",
+								f"({idx}/{tot})",
+								f"Map11.wad.client › {name}",
+							),
+						)
+
+						cleaned_elements = clean_map_elements(
+							temp_dir,
+							dry_run=dry_run,
+							progress_callback=lambda idx, tot, name: emit_progress(
+								scheduler.pct("map11", 0.30 + (idx / max(tot, 1)) * 0.25),
+								"Map11: Sanitize",
+								f"({idx}/{tot})",
+								f"Map11.wad.client › {name}",
+							),
+						)
+
+						generated_chars = process_map11_master_characters(
+							temp_dir,
+							dry_run=dry_run,
+							progress_callback=lambda idx, tot, name: emit_progress(
+								scheduler.pct("map11", 0.55 + (idx / max(tot, 1)) * 0.20),
+								"Map11: Entities",
+								f"({idx}/{tot})",
+								f"Map11.wad.client › {name}",
+							),
+						)
+
+						all_map_recompile = sorted(set(cleaned_elements + generated_chars))
+						if all_map_recompile:
+							recompile_text_to_bin(
+								temp_dir,
+								cfg,
+								dry_run=dry_run,
+								file_selector=lambda _: all_map_recompile,
+								parallel=True,
+								progress_callback=lambda idx, tot, name: emit_progress(
+									scheduler.pct("map11", 0.75 + (idx / max(tot, 1)) * 0.24),
+									"Map11: Recompile",
+									f"({idx}/{tot})",
+									f"Map11.wad.client › {name}",
+								),
+							)
+
+							if not dry_run:
+								shutil.rmtree(map11_cache_dir, ignore_errors=True)
+								map11_cache_dir.mkdir(parents=True, exist_ok=True)
+								copied = 0
+								for txt_file in all_map_recompile:
+									out_bin = txt_file.with_name(txt_file.name[:-4])
+									if out_bin.is_file():
+										rel = out_bin.relative_to(temp_dir)
+										dest = map11_cache_dir / rel
+										dest.parent.mkdir(parents=True, exist_ok=True)
+										shutil.copy2(out_bin, dest)
+										copied += 1
+										if "base_srx.materials.bin" in out_bin.name.lower():
+											dest_layer = project_dir / "content" / "accents" / "Map11.wad.client" / rel
+											dest_layer.parent.mkdir(parents=True, exist_ok=True)
+											shutil.copy2(out_bin, dest_layer)
+
+								map11_tex_dest = map11_cache_dir / MAP11_TRANSPARENT_TEX_REL
+								map11_tex_dest.parent.mkdir(parents=True, exist_ok=True)
+								map11_tex_dest.write_bytes(RAW_TRANSPARENT_TEX_BYTES)
+
+								if copied > 0:
+									_write_cache_hash(map11_cache_dir, map11_hash, script_hash)
+
+					if opt_structures and not dry_run:
+						build_layer_structures(project_dir)
+					if opt_minions and not dry_run:
+						build_layer_minions(project_dir)
+					if opt_wards:
+						build_layer_wards(project_dir, tools=cfg, dry_run=dry_run)
+
+				emit_progress(scheduler.pct("map11", 1.0), "MAP11 DONE", "", "Map11 processed successfully!")
+
+			# 2. UI.WAD CONTAINER
+			needs_ui = opt_finishers and ui_wad and ui_wad.is_file()
+			if needs_ui:
+				wad_label = ui_wad.stem.upper()
+				emit_progress(scheduler.pct("ui", 0.0), f"PROCESSING {wad_label}", "", f"Checking elements in {ui_wad.name}...")
+				ui_hash = file_fingerprint(ui_wad)
+				ui_cache_dir = get_canonical_cache_dir(cache_dir, ui_wad)
+
+				if not dry_run:
+					build_layer_finishers(project_dir)
+
+				if _is_cache_valid(ui_cache_dir, ui_hash, script_hash) and not dry_run:
+					LOG.info("Reusing UI elements from master cache: %s", ui_wad.name)
+					emit_progress(scheduler.pct("ui", 0.25), f"{wad_label}: Cache", "", f"Valid {ui_wad.name} master cache reused...")
+				else:
+					with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix="vanilla_finisher_ui_") as temp_fin_str:
+						temp_fin = Path(temp_fin_str)
+						extract_wad(
+							ui_wad,
+							temp_fin,
+							cfg,
+							filter_type="bin",
+							filter_pattern=r"(?i)(gameplay\.endofgame\.bin|gameplay\.nexusfinisher\.bin)",
+							dry_run=dry_run,
+						)
+
+						decompile_bin_files(
+							temp_fin,
+							cfg,
+							dry_run=dry_run,
+							parallel=True,
+							progress_callback=lambda idx, tot, name: emit_progress(
+								scheduler.pct("ui", 0.10 + (idx / max(tot, 1)) * 0.10),
+								f"{wad_label}: Decompile",
+								f"({idx}/{tot})",
+								f"{ui_wad.name} › {name}",
+							),
+						)
+
+						cleaned_fin = clean_finisher_elements(
+							temp_fin,
+							dry_run=dry_run,
+							progress_callback=lambda idx, tot, name: emit_progress(
+								scheduler.pct("ui", 0.25 + (idx / max(tot, 1)) * 0.05),
+								f"{wad_label}: Finishers",
+								f"({idx}/{tot})",
+								f"{ui_wad.name} › {name}",
+							),
+						)
+
+						if cleaned_fin:
+							recompile_text_to_bin(
+								temp_fin,
+								cfg,
+								dry_run=dry_run,
+								file_selector=lambda _: cleaned_fin,
+								parallel=True,
+								progress_callback=lambda idx, tot, name: emit_progress(
+									scheduler.pct("ui", 0.35 + (idx / max(tot, 1)) * 0.10),
+									f"{wad_label}: Recompile",
+									f"({idx}/{tot})",
+									f"{ui_wad.name} › {name}",
+								),
+							)
+
+							if not dry_run:
+								shutil.rmtree(ui_cache_dir, ignore_errors=True)
+								ui_cache_dir.mkdir(parents=True, exist_ok=True)
+								copied = 0
+								for cl_txt in cleaned_fin:
+									out_b = cl_txt.with_name(cl_txt.name[:-4])
+									if out_b.is_file():
+										rel = out_b.relative_to(temp_fin)
+										dest = ui_cache_dir / rel
+										dest.parent.mkdir(parents=True, exist_ok=True)
+										shutil.copy2(out_b, dest)
+										copied += 1
+										dest_fin = project_dir / "content" / "finishers" / ui_wad.name / rel
+										dest_fin.parent.mkdir(parents=True, exist_ok=True)
+										shutil.copy2(out_b, dest_fin)
+
+								if copied > 0:
+									_write_cache_hash(ui_cache_dir, ui_hash, script_hash)
+
+				emit_progress(scheduler.pct("ui", 0.5), f"{wad_label} DONE", "", f"{ui_wad.name} elements processed successfully!")
+
+			# 3. GLOBAL.WAD CONTAINER
+			needs_global = (opt_accents or opt_recalls) and global_wad.is_file()
+			if needs_global:
+				wad_label = global_wad.stem.upper()
+				emit_progress(scheduler.pct("ui", 0.5), f"PROCESSING {wad_label}", "", f"Checking elements in {global_wad.name}...")
+				global_hash = file_fingerprint(global_wad)
+				global_cache_dir = get_canonical_cache_dir(cache_dir, global_wad)
+
+				if not dry_run:
+					build_layer_base(project_dir)
+
+				if _is_cache_valid(global_cache_dir, global_hash, script_hash) and not dry_run:
+					LOG.info("Reusing Global elements from master cache: %s", global_wad.name)
+					emit_progress(scheduler.pct("ui", 0.75), f"{wad_label}: Cache", "", f"Valid {global_wad.name} master cache reused...")
+
+					if opt_accents:
+						for b_file in global_cache_dir.rglob("*.bin"):
+							rel_p = b_file.relative_to(global_cache_dir).as_posix().lower()
+							if any(k in rel_p for k in ("summonerbanner", "summonertroph")):
+								dest_b = project_dir / "content" / "accents" / global_wad.name / b_file.relative_to(global_cache_dir)
+								dest_b.parent.mkdir(parents=True, exist_ok=True)
+								shutil.copy2(b_file, dest_b)
+
+					if opt_recalls:
+						for r_file in global_cache_dir.rglob("*.bin"):
+							rel_p = r_file.relative_to(global_cache_dir).as_posix().lower()
+							if "shared" in rel_p:
+								dest_r = project_dir / "content" / "recalls" / global_wad.name / r_file.relative_to(global_cache_dir)
+								dest_r.parent.mkdir(parents=True, exist_ok=True)
+								shutil.copy2(r_file, dest_r)
+				else:
+					with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix="vanilla_global_") as temp_glob_str:
+						temp_glob = Path(temp_glob_str)
+						ext_filter_pattern = r"(?i)(loadouts/summonerbanners$|loadouts/summonertrophies$|(?:^|/)shared$)"
+						extract_wad(
+							global_wad,
+							temp_glob,
+							cfg,
+							filter_type=None,
+							filter_pattern=ext_filter_pattern,
+							dry_run=dry_run,
+						)
+
+						decompile_bin_files(
+							temp_glob,
+							cfg,
+							dry_run=dry_run,
+							parallel=True,
+							progress_callback=lambda idx, tot, name: emit_progress(
+								scheduler.pct("ui", 0.55 + (idx / max(tot, 1)) * 0.10),
+								f"{wad_label}: Decompile",
+								f"({idx}/{tot})",
+								f"{global_wad.name} › {name}",
+							),
+						)
+
+						cleaned_banners: list[Path] = []
+						if opt_accents:
+							cleaned_banners = clean_summoner_elements(
+								temp_glob,
+								dry_run=dry_run,
+								progress_callback=lambda idx, tot, name: emit_progress(
+									scheduler.pct("ui", 0.70 + (idx / max(tot, 1)) * 0.05),
+									f"{wad_label}: Banners",
+									f"({idx}/{tot})",
+									f"{global_wad.name} › {name}",
+								),
+							)
+
+						cleaned_recalls: list[Path] = []
+						if opt_recalls:
+							cleaned_recalls = clean_recall_elements(
+								temp_glob,
+								workspace_root=workspace_root,
+								dry_run=dry_run,
+								progress_callback=lambda idx, tot, name: emit_progress(
+									scheduler.pct("ui", 0.75 + (idx / max(tot, 1)) * 0.05),
+									f"{wad_label}: Recalls",
+									f"({idx}/{tot})",
+									f"{global_wad.name} › {name}",
+								),
+							)
+
+						all_glob_recompile = sorted(set(cleaned_banners + cleaned_recalls))
+						if all_glob_recompile:
+							recompile_text_to_bin(
+								temp_glob,
+								cfg,
+								dry_run=dry_run,
+								file_selector=lambda _: all_glob_recompile,
+								parallel=True,
+								progress_callback=lambda idx, tot, name: emit_progress(
+									scheduler.pct("ui", 0.85 + (idx / max(tot, 1)) * 0.10),
+									f"{wad_label}: Recompile",
+									f"({idx}/{tot})",
+									f"{global_wad.name} › {name}",
+								),
+							)
+
+							if not dry_run:
+								shutil.rmtree(global_cache_dir, ignore_errors=True)
+								global_cache_dir.mkdir(parents=True, exist_ok=True)
+								copied = 0
+								for cl_txt in all_glob_recompile:
+									out_b = cl_txt.with_name(cl_txt.name[:-4])
+									if out_b.is_file():
+										rel = out_b.relative_to(temp_glob)
+										dest = global_cache_dir / rel
+										dest.parent.mkdir(parents=True, exist_ok=True)
+										shutil.copy2(out_b, dest)
+										copied += 1
+
+										rel_p = rel.as_posix().lower()
+										if opt_accents and any(k in rel_p for k in ("summonerbanner", "summonertroph")):
+											dest_b = project_dir / "content" / "accents" / global_wad.name / rel
+											dest_b.parent.mkdir(parents=True, exist_ok=True)
+											shutil.copy2(out_b, dest_b)
+										elif opt_recalls and "shared" in rel_p:
+											dest_r = project_dir / "content" / "recalls" / global_wad.name / rel
+											dest_r.parent.mkdir(parents=True, exist_ok=True)
+											shutil.copy2(out_b, dest_r)
+
+								global_tex_dest = global_cache_dir / GLOBAL_TRANSPARENT_TEX_REL
+								global_tex_dest.parent.mkdir(parents=True, exist_ok=True)
+								global_tex_dest.write_bytes(RAW_TRANSPARENT_TEX_BYTES)
+								copied += 1
+
+								if copied > 0:
+									_write_cache_hash(global_cache_dir, global_hash, script_hash)
+
+				emit_progress(scheduler.pct("ui", 1.0), f"{wad_label} DONE", "", f"{global_wad.name} elements processed successfully!")
+
+			# 4. CHAMPIONS
+			if opt_champions and champion_wads:
+				emit_progress(scheduler.pct("champions", 0.0), "PROCESSING CHAMPIONS", "", f"Starting triage and declarations for {len(champion_wads)} champions...")
+
+				overrides_dir = workspace_root / "overrides"
+				active_wad_names = set()
+				if overrides_dir.is_dir():
+					for tpl in overrides_dir.rglob("skin*.bin.txt"):
+						if tpl.stat().st_size > 0:
+							target_wad = _resolve_entity_to_champion_wad(tpl.parent.parent.name.lower(), champion_wads)
+							if target_wad:
+								active_wad_names.add(target_wad.name.lower())
+
+				has_uncached_overrides = any(
+					not _is_cache_valid(get_canonical_cache_dir(cache_dir, w), file_fingerprint(w), script_hash)
+					for w in champion_wads
+					if w.name.lower() in active_wad_names
+				)
+
+				is_cache_hit = not has_uncached_overrides and not dry_run
+				if is_cache_hit:
+					emit_progress(scheduler.pct("champions", 0.5), "Champions: Cache", "", "Valid champions master cache reused...")
+
+				build_layer_champions(
+					champion_wads,
+					project_dir,
+					tools=cfg,
+					workspace_root=workspace_root,
+					dry_run=dry_run,
+					progress_callback=lambda ratio, counter, current: emit_progress(
+						scheduler.pct("champions", ratio),
+						"Champions: Cache" if is_cache_hit else "Champions",
+						counter,
+						current,
+					),
+				)
+				emit_progress(scheduler.pct("champions", 1.0), "CHAMPIONS DONE", "", "All champions processed successfully!")
+				
+			# 5. PACKAGE
+			emit_progress(scheduler.pct("package", 0.0), "PROCESSING PACKAGE", "", "Cataloging assets and assembling MODPKG...")
+			output_package = None
+			if not dry_run:
+				output_package = pack_modpkg_project(
+					project_dir,
+					workspace_root,
+					tools=cfg,
+					progress_callback=lambda ratio, phase, stat, curr="": emit_progress(scheduler.pct("package", ratio), "Package", stat, curr),
+				)
+
+			emit_progress(100.0, "PACKAGE DONE", "", f"Package completed: {output_package.name if output_package else 'Simulation'}")
+			return {
+				"output_package": output_package,
+				"package_format": package_format,
+				"project_dir": project_dir,
+				"cfg": cfg,
+			}
+
+		# ======================================================================
+		# ENGINE 2: LEGACY 1:1 STANDALONE PIPELINE (.FANTOME)
+		# ======================================================================
+		cache_dir = cfg["cache_dir"]
+		allowed_wads = set()
+
+		needs_map = any([opt_accents, opt_wards, opt_structures, opt_minions, opt_finishers, opt_champions]) and map_wad.is_file()
 		if needs_map and map_wad.is_file():
 			emit_progress(scheduler.pct("map11", 0.0), "PROCESSING MAP11", "", "Verifying canonical Map11 container...")
 			wad_hash = file_fingerprint(map_wad)
@@ -2889,6 +4115,7 @@ def build_vanilla_pipeline(
 						if is_global:
 							cleaned_recalls = clean_recall_elements(
 								temp_fin,
+								workspace_root=workspace_root,
 								dry_run=dry_run,
 								progress_callback=lambda idx, tot, name: emit_progress(
 									scheduler.pct("ui", wad_base_ratio + wad_span_ratio * (0.65 + (idx / max(tot, 1)) * 0.05)),
@@ -2899,7 +4126,6 @@ def build_vanilla_pipeline(
 							)
 
 						all_ui_global_recompile = sorted(set(cleaned_fin + cleaned_banners + cleaned_recalls))
-
 						if all_ui_global_recompile:
 							recompile_text_to_bin(
 								temp_fin,
@@ -2947,6 +4173,12 @@ def build_vanilla_pipeline(
 
 		if opt_champions:
 			emit_progress(scheduler.pct("champions", 0.0), "PROCESSING CHAMPIONS", "", f"Starting reversion of {len(champion_wads)} champions...")
+			is_all_cached = not any(
+				not _is_cache_valid(get_canonical_cache_dir(cfg["cache_dir"], w), file_fingerprint(w), _script_fingerprint())
+				for w in champion_wads
+			)
+			if is_all_cached and not dry_run:
+				emit_progress(scheduler.pct("champions", 0.5), "Champions: Cache", "", "Valid champions master cache reused...")
 			process_champion_wads(
 				champion_wads,
 				cfg,
@@ -2954,7 +4186,7 @@ def build_vanilla_pipeline(
 				dry_run=dry_run,
 				progress_callback=lambda ratio, counter, current="": emit_progress(
 					scheduler.pct("champions", ratio),
-					"Champions",
+					"Champions: Cache" if is_all_cached else "Champions",
 					counter,
 					current,
 				),
@@ -2963,21 +4195,40 @@ def build_vanilla_pipeline(
 			emit_progress(scheduler.pct("champions", 1.0), "CHAMPIONS DONE", "", "All champions processed successfully!")
 
 		ghost_path = workspace_root / "VanillaTrueMod.fantome"
+		emit_progress(scheduler.pct("package", 0.0), "PROCESSING PACKAGE", "", "Cataloging assets and assembling standalone FANTOME...")
+		
+		fantome_output = None
+		if not dry_run:
+			fantome_output = create_standalone_fantome(
+				cfg["cache_dir"],
+				ghost_path,
+				allowed_wads=allowed_wads,
+				options=options,
+				dry_run=False,
+				progress_callback=lambda ratio, phase, stat, curr="": emit_progress(
+					scheduler.pct("package", ratio),
+					"Package",
+					stat,
+					curr,
+				),
+			)
+		emit_progress(100.0, "PACKAGE DONE", "", f"Package completed: {fantome_output.name if fantome_output else 'Simulation'}")
 
 		return {
+			"output_package": fantome_output,
+			"package_format": package_format,
 			"ghost_path": ghost_path,
 			"allowed_wads": allowed_wads,
 			"options": options,
 			"cfg": cfg,
 			"scheduler": scheduler,
 		}
-	except BaseException:
+	finally:
 		cleanup_temp_dirs()
-		raise
 
 
 # ==============================================================================
-# ENTRY POINT & HEXTECH GRAPHICAL INTERFACE (MODERN FRAMELESS TITLEBAR)
+# ENTRY POINT & HEXTECH GRAPHICAL INTERFACE
 # ==============================================================================
 def main() -> None:
 	default_paths = resolve_default_paths()
@@ -2988,6 +4239,7 @@ def main() -> None:
 	parser.add_argument("--gui", action="store_true", help="Launch graphical user interface")
 	parser.add_argument("--dry-run", action="store_true", help="Run simulation without writing files")
 	parser.add_argument("--update-hashes", action="store_true", help="Force update of CommunityDragon hashes")
+	parser.add_argument("--format", choices=["modpkg", "fantome"], default="modpkg", help="Packaging format (modpkg or fantome)")
 	parser.add_argument("--no-accents", action="store_true", help="Do not omit map accents, statues, banners and trophies")
 	parser.add_argument("--no-wards", action="store_true", help="Do not revert vision wards")
 	parser.add_argument("--no-structures", action="store_true", help="Do not revert structures (Turrets, Rubble, Inhibitors, Nexus, Shopkeepers)")
@@ -3027,24 +4279,22 @@ def main() -> None:
 		"champions": not args.no_champions,
 	}
 
-	result = build_vanilla_pipeline(map_wad, workspace_root, ui_wad=ui_wad, options=options, dry_run=args.dry_run, cfg=cfg)
+	result = build_vanilla_pipeline(
+		map_wad,
+		workspace_root,
+		ui_wad=ui_wad,
+		options=options,
+		dry_run=args.dry_run,
+		cfg=cfg,
+		package_format=args.format,
+	)
 
-	if not args.dry_run:
-		fantome = create_standalone_fantome(
-			cfg["cache_dir"],
-			result["ghost_path"],
-			allowed_wads=result["allowed_wads"],
-			options=result["options"],
-			dry_run=False,
-		)
-		LOG.info(".fantome package successfully generated: %s", fantome)
+	if not args.dry_run and result.get("output_package"):
+		LOG.info("Package successfully generated: %s", result["output_package"])
 	cleanup_temp_dirs()
 
 
 class TkApp:
-	# ==========================================================================
-	# THEME & HEADER COLOR CONFIGURATION
-	# ==========================================================================
 	C_TITLEBAR = "#0b1016"
 	C_TITLEBAR_BORDER = "#1a2530"
 	C_TITLEBAR_TEXT = "#ffffff"
@@ -3052,7 +4302,6 @@ class TkApp:
 	C_TITLEBAR_HOVER = "#18202d"
 	C_CLOSE_HOVER = "#c42b1c"
 
-	# Hextech UI
 	C_BG_ROOT = "#080c12"
 	C_BG_CARD = "#0f1823"
 	C_BG_CARD_HOVER = "#162334"
@@ -3077,8 +4326,8 @@ class TkApp:
 
 		self.root = tk.Tk()
 		self.root.title("Vanilla True Builder")
-		self.root.geometry("880x760+250+100")
-		self.root.minsize(820, 680)
+		self.root.geometry("880x790+250+80")
+		self.root.minsize(820, 700)
 		self.root.configure(bg=self.C_BG_ROOT)
 
 		self.root.overrideredirect(True)
@@ -3110,13 +4359,15 @@ class TkApp:
 		self.current_file_var = tk.StringVar(value="Waiting for command...")
 		self.launcher_status_var = tk.StringVar(value="SYNCING...")
 
-		self.chk_accents = tk.BooleanVar(value=False)
-		self.chk_wards = tk.BooleanVar(value=False)
-		self.chk_structures = tk.BooleanVar(value=False)
-		self.chk_minions = tk.BooleanVar(value=False)
-		self.chk_finishers = tk.BooleanVar(value=False)
-		self.chk_recalls = tk.BooleanVar(value=False)
-		self.chk_champions = tk.BooleanVar(value=False)
+		self.pkg_format_var = tk.StringVar(value="modpkg")
+
+		self.chk_accents = tk.BooleanVar(value=True)
+		self.chk_wards = tk.BooleanVar(value=True)
+		self.chk_structures = tk.BooleanVar(value=True)
+		self.chk_minions = tk.BooleanVar(value=True)
+		self.chk_finishers = tk.BooleanVar(value=True)
+		self.chk_recalls = tk.BooleanVar(value=True)
+		self.chk_champions = tk.BooleanVar(value=True)
 
 		self._configure_styles()
 		self._build_custom_titlebar()
@@ -3125,7 +4376,6 @@ class TkApp:
 
 		threading.Thread(target=self._check_initial_launcher_status, daemon=True).start()
 		threading.Thread(target=self._check_github_app_update, daemon=True).start()
-		
 
 	def _integrate_windows_taskbar(self) -> None:
 		if sys.platform == "win32":
@@ -3226,7 +4476,7 @@ class TkApp:
 
 					user32 = ctypes.windll.user32
 					hwnd = getattr(self, "hwnd", None) or self.root.winfo_id()
-					h_monitor = user32.MonitorFromWindow(hwnd, 2)  # MONITOR_DEFAULTTONEAREST
+					h_monitor = user32.MonitorFromWindow(hwnd, 2)
 
 					mi = MONITORINFO()
 					mi.cbSize = ctypes.sizeof(MONITORINFO)
@@ -3266,13 +4516,7 @@ class TkApp:
 			pass
 
 		style.configure("Root.TFrame", background=self.C_BG_ROOT)
-		style.configure(
-			"Card.TFrame",
-			background=self.C_BG_CARD,
-			relief="solid",
-			borderwidth=1,
-			bordercolor=self.C_BORDER_GOLD,
-		)
+		style.configure("Card.TFrame", background=self.C_BG_CARD, relief="solid", borderwidth=1, bordercolor=self.C_BORDER_GOLD)
 		style.configure("CardInner.TFrame", background=self.C_BG_CARD, borderwidth=0)
 
 		style.configure("Title.TLabel", background=self.C_BG_ROOT, foreground=self.C_GOLD_ACCENT, font=("Segoe UI", 15, "bold"))
@@ -3293,6 +4537,22 @@ class TkApp:
 		)
 		style.map(
 			"Hextech.TCheckbutton",
+			background=[("active", self.C_BG_CARD_HOVER)],
+			foreground=[("active", self.C_GOLD_ACCENT)],
+			indicatorcolor=[("selected", self.C_CYAN_MAGIC), ("pressed", self.C_GOLD_ACCENT)],
+		)
+
+		style.configure(
+			"Hextech.TRadiobutton",
+			background=self.C_BG_CARD,
+			foreground=self.C_GOLD_TEXT,
+			font=("Segoe UI", 9),
+			focuscolor=self.C_BG_CARD,
+			indicatorrelief="flat",
+			padding=2,
+		)
+		style.map(
+			"Hextech.TRadiobutton",
 			background=[("active", self.C_BG_CARD_HOVER)],
 			foreground=[("active", self.C_GOLD_ACCENT)],
 			indicatorcolor=[("selected", self.C_CYAN_MAGIC), ("pressed", self.C_GOLD_ACCENT)],
@@ -3343,7 +4603,6 @@ class TkApp:
 	def launch_auditor(self) -> None:
 		kwargs: dict = {}
 		if sys.platform == "win32":
-			kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 			startupinfo = subprocess.STARTUPINFO()
 			startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 			startupinfo.wShowWindow = subprocess.SW_HIDE
@@ -3357,6 +4616,59 @@ class TkApp:
 				subprocess.Popen([sys.executable, str(script)], cwd=str(self.workspace_root), **kwargs)
 		except Exception as exc:
 			messagebox.showerror("Launch Error", f"Failed to launch auditor:\n{exc}")
+
+	def _on_format_changed(self) -> None:
+		fmt = self.pkg_format_var.get().lower()
+		self.btn_compile.config(text=f"BUILD PACKAGE (.{fmt.upper()})")
+
+		if fmt == "modpkg":
+			if hasattr(self, "fantome_modules_container") and self.fantome_modules_container.winfo_ismapped():
+				self.fantome_modules_container.pack_forget()
+		else:
+			if hasattr(self, "fantome_modules_container") and not self.fantome_modules_container.winfo_ismapped():
+				self.fantome_modules_container.pack(fill=tk.X, pady=(0, 10), before=self.action_frame)
+
+	def _select_format(self, val: str) -> None:
+		if self.pkg_format_var.get().lower() == val:
+			return
+		self.pkg_format_var.set(val)
+		self._update_format_switcher()
+		self._on_format_changed()
+
+	def _hover_format_tab(self, val: str, is_hover: bool) -> None:
+		if self.pkg_format_var.get().lower() == val:
+			return
+		d = self.switcher_tabs.get(val)
+		if not d:
+			return
+		bg = "#111a24" if is_hover else "#0a1017"
+		d["frame"].config(bg=bg)
+		d["center"].config(bg=bg)
+		d["icon"].config(bg=bg)
+		d["title"].config(bg=bg)
+
+	def _update_format_switcher(self) -> None:
+		cur = self.pkg_format_var.get().lower()
+		for val, d in self.switcher_tabs.items():
+			info = self.switcher_info[val]
+			is_act = (val == cur)
+
+			bg = info["bg_active"] if is_act else "#0a1017"
+			border = info["col"] if is_act else "#0a1017"
+			icon_char = "◆" if is_act else "◇"
+			icon_fg = info["col"] if is_act else self.C_TEXT_MUTED
+			title_fg = self.C_GOLD_TEXT if is_act else self.C_TEXT_MUTED
+			pill_bg = info["pill_bg_active"] if is_act else "#080c11"
+			pill_fg = info["col"] if is_act else "#4e5a67"
+
+			d["frame"].config(bg=bg, highlightthickness=1, highlightbackground=border)
+			d["center"].config(bg=bg)
+			d["icon"].config(text=icon_char, fg=icon_fg, bg=bg)
+			d["title"].config(fg=title_fg, bg=bg)
+			d["badge"].config(fg=pill_fg, bg=pill_bg)
+
+		if hasattr(self, "format_info_label") and cur in self.switcher_info:
+			self.format_info_label.config(text=f"ⓘ  {self.switcher_info[cur]['tip']}")
 
 	def _build_ui(self) -> None:
 		root_frame = ttk.Frame(self.root, style="Root.TFrame", padding=(16, 10, 16, 12))
@@ -3383,33 +4695,117 @@ class TkApp:
 		header_right.pack(side=tk.RIGHT, anchor="ne")
 		ttk.Label(header_right, text="by Neve | RAKUZAN", style="Credit.TLabel").pack(anchor="e")
 
-		modules_row = ttk.Frame(root_frame, style="Root.TFrame")
+		format_row = ttk.Frame(root_frame, style="Root.TFrame")
+		format_row.pack(fill=tk.X, pady=(0, 0))
+
+		ttk.Label(format_row, text="PACKAGE FORMAT", style="Phase.TLabel").pack(side=tk.LEFT, anchor="sw", pady=(0, 4))
+
+		tools_frame = ttk.Frame(format_row, style="Root.TFrame")
+		tools_frame.pack(side=tk.RIGHT, anchor="se", pady=(0, 12))
+		ttk.Button(tools_frame, text="SKIN FIX", style="HextechUtil.TButton", command=self.launch_auditor).pack(side=tk.LEFT)
+
+		format_box = tk.Frame(root_frame, bg=self.C_BG_ROOT)
+		format_box.pack(fill=tk.X, pady=(0, 10))
+
+		switcher = tk.Frame(format_box, bg="#0a1017", highlightthickness=1, highlightbackground=self.C_BORDER_DARK, padx=3, pady=3)
+		switcher.pack(fill=tk.X)
+
+		self.switcher_info = {
+			"modpkg": {
+				"title": ".MODPKG",
+				"badge": "RECOMMENDED",
+				"tip": "Complete modular layers with dynamic runtime toggles inside LTK Manager",
+				"col": self.C_CYAN_MAGIC,
+				"bg_active": "#12202e",
+				"pill_bg_active": "#162f42",
+			},
+			"fantome": {
+				"title": ".FANTOME",
+				"badge": "LEGACY",
+				"tip": "Traditional standalone archive with pre-compiled fixed modules",
+				"col": self.C_GOLD_ACCENT,
+				"bg_active": "#1f1910",
+				"pill_bg_active": "#2b2214",
+			},
+		}
+
+		self.switcher_tabs = {}
+
+		self.format_info_label = tk.Label(format_box, text="", bg=self.C_BG_ROOT, fg=self.C_GOLD_TEXT, font=("Segoe UI", 8, "bold"))
+		self.format_info_label.pack(anchor="w", padx=2, pady=(4, 0))
+
+		for i, (val, info) in enumerate(self.switcher_info.items()):
+			tab_frame = tk.Frame(switcher, bg="#0a1017", padx=8, pady=8, cursor="hand2")
+			tab_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0 if i == 0 else 4, 0))
+
+			center_box = tk.Frame(tab_frame, bg="#0a1017")
+			center_box.pack(anchor="center")
+
+			lbl_icon = tk.Label(center_box, text="◇", bg="#0a1017", fg=self.C_TEXT_MUTED, font=("Segoe UI", 9, "bold"))
+			lbl_icon.pack(side=tk.LEFT, padx=(0, 6))
+
+			lbl_title = tk.Label(center_box, text=info["title"], bg="#0a1017", fg=self.C_TEXT_MUTED, font=("Segoe UI", 9, "bold"))
+			lbl_title.pack(side=tk.LEFT, padx=(0, 6))
+
+			lbl_badge = tk.Label(
+				center_box,
+				text=info["badge"],
+				bg="#080c11",
+				fg="#4e5a67",
+				font=("Segoe UI", 7, "bold"),
+				padx=5,
+				pady=1,
+			)
+			lbl_badge.pack(side=tk.LEFT)
+
+			self.switcher_tabs[val] = {
+				"frame": tab_frame,
+				"center": center_box,
+				"icon": lbl_icon,
+				"title": lbl_title,
+				"badge": lbl_badge,
+			}
+
+			for w in (tab_frame, center_box, lbl_icon, lbl_title, lbl_badge):
+				w.bind("<Button-1>", lambda e, v=val: self._select_format(v))
+				w.bind("<Enter>", lambda e, v=val: self._hover_format_tab(v, True))
+				w.bind("<Leave>", lambda e, v=val: self._hover_format_tab(v, False))
+
+		self._update_format_switcher()
+
+		footer_frame = ttk.Frame(root_frame, style="Root.TFrame")
+		footer_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(12, 0))
+
+		self.btn_open_folder = ttk.Button(
+			footer_frame,
+			text="📁 OPEN BUILD FOLDER",
+			style="HextechUtil.TButton",
+			command=self.open_output_folder,
+		)
+		self.btn_open_folder.pack(side=tk.RIGHT)
+
+		self.error_btn = ttk.Button(
+			footer_frame,
+			text="⚠ OPEN DETAILED ERROR REPORT (LOG)",
+			style="HextechUtil.TButton",
+			command=self.open_error_log,
+		)
+		self.error_btn.pack(side=tk.LEFT)
+		self.error_btn.pack_forget()
+
+		self.action_frame = ttk.Frame(root_frame, style="Root.TFrame")
+
+		self.fantome_modules_container = ttk.Frame(root_frame, style="Root.TFrame")
+
+		modules_row = ttk.Frame(self.fantome_modules_container, style="Root.TFrame")
 		modules_row.pack(fill=tk.X, pady=(0, 0))
 
-		ttk.Label(
-			modules_row,
-			text="MODULES",
-			style="Phase.TLabel",
-		).pack(side=tk.LEFT, anchor="sw", pady=(0, 4))
+		ttk.Label(modules_row, text="MODULES", style="Phase.TLabel").pack(side=tk.LEFT, anchor="sw", pady=(0, 2))
 
-		tools_frame = ttk.Frame(modules_row, style="Root.TFrame")
-		tools_frame.pack(side=tk.RIGHT, anchor="se", pady=(0, 12))
+		modules_card = ttk.Frame(self.fantome_modules_container, style="Card.TFrame", padding=(12, 6, 12, 6))
+		modules_card.pack(fill=tk.X, pady=(0, 0))
 
-		ttk.Button(
-			tools_frame,
-			text="SKIN FIX",
-			style="HextechUtil.TButton",
-			command=self.launch_auditor,
-		).pack(side=tk.LEFT)
-
-		card = ttk.Frame(
-			root_frame,
-			style="Card.TFrame",
-			padding=(14, 10, 14, 10),
-		)
-		card.pack(fill=tk.X, pady=(0, 10))
-
-		card_content = ttk.Frame(card, style="CardInner.TFrame")
+		card_content = ttk.Frame(modules_card, style="CardInner.TFrame")
 		card_content.pack(fill=tk.X)
 
 		self.module_defs = [
@@ -3423,32 +4819,26 @@ class TkApp:
 		]
 
 		for title, desc, var in self.module_defs:
-			chk = ttk.Checkbutton(
-				card_content,
-				text=f"{title} — {desc}",
-				variable=var,
-				style="Hextech.TCheckbutton",
-			)
-			chk.pack(anchor="w", pady=2)
+			chk = ttk.Checkbutton(card_content, text=f"{title} — {desc}", variable=var, style="Hextech.TCheckbutton")
+			chk.pack(anchor="w", pady=1)
 
-		ctrl_row = ttk.Frame(card, style="CardInner.TFrame")
-		ctrl_row.pack(fill=tk.X, pady=(10, 2))
+		ctrl_row = ttk.Frame(modules_card, style="CardInner.TFrame")
+		ctrl_row.pack(fill=tk.X, pady=(6, 2))
 		ttk.Button(ctrl_row, text="Select All", style="HextechUtil.TButton", command=self.select_all).pack(side=tk.LEFT, padx=(0, 6))
 		ttk.Button(ctrl_row, text="Deselect All", style="HextechUtil.TButton", command=self.deselect_all).pack(side=tk.LEFT)
 
-		action_frame = ttk.Frame(root_frame, style="Root.TFrame")
-		action_frame.pack(fill=tk.X, pady=(0, 10))
+		self.action_frame.pack(fill=tk.X, pady=(0, 10))
 
 		self.btn_compile = ttk.Button(
-			action_frame,
-			text="BUILD PACKAGE (.FANTOME)",
+			self.action_frame,
+			text="BUILD PACKAGE (.MODPKG)",
 			style="HextechAction.TButton",
 			command=self.start_build,
 		)
 		self.btn_compile.pack(fill=tk.X, ipady=6)
 
 		prog_frame = ttk.Frame(root_frame, style="Root.TFrame")
-		prog_frame.pack(fill=tk.X, pady=(0, 6))
+		prog_frame.pack(fill=tk.X, pady=(0, 4))
 
 		self.progress = ttk.Progressbar(
 			prog_frame,
@@ -3479,7 +4869,7 @@ class TkApp:
 
 		self.trace = tk.Text(
 			console_card,
-			height=7,
+			height=5,
 			wrap=tk.WORD,
 			state=tk.DISABLED,
 			bg=self.C_BG_TERMINAL,
@@ -3500,27 +4890,15 @@ class TkApp:
 		self.trace.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 		trace_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-		footer_frame = ttk.Frame(root_frame, style="Root.TFrame")
-		footer_frame.pack(fill=tk.X, pady=(12, 0))
-
-		self.btn_open_folder = ttk.Button(
-			footer_frame,
-			text="📁 OPEN FANTOME FOLDER",
-			style="HextechUtil.TButton",
-			command=self.open_output_folder,
-		)
-		self.btn_open_folder.pack(side=tk.RIGHT)
-
-		self.error_btn = ttk.Button(
-			footer_frame,
-			text="⚠ OPEN DETAILED ERROR REPORT (LOG)",
-			style="HextechUtil.TButton",
-			command=self.open_error_log,
-		)
-		self.error_btn.pack(side=tk.LEFT)
-		self.error_btn.pack_forget()
-
 		self._append_trace(" VANILLA TRUE BUILDER — Ready for compilation.", tag="cyan")
+
+	def select_all(self) -> None:
+		for _, _, var in self.module_defs:
+			var.set(True)
+
+	def deselect_all(self) -> None:
+		for _, _, var in self.module_defs:
+			var.set(False)
 
 	def open_output_folder(self) -> None:
 		target = self.workspace_root
@@ -3539,9 +4917,14 @@ class TkApp:
 	def _check_initial_launcher_status(self) -> None:
 		try:
 			cache_dir = self.workspace_root / "cache"
+			modpkg = self.workspace_root / "VanillaTrueMod.modpkg"
 			fantome = self.workspace_root / "VanillaTrueMod.fantome"
 
-			if not fantome.is_file() or not cache_dir.is_dir():
+			if not modpkg.is_file() and not fantome.is_file():
+				self.root.after(0, lambda: self._set_status_badge("READY TO BUILD", self.C_CYAN_MAGIC))
+				return
+
+			if not cache_dir.is_dir():
 				self.root.after(0, lambda: self._set_status_badge("READY TO BUILD", self.C_CYAN_MAGIC))
 				return
 
@@ -3557,11 +4940,20 @@ class TkApp:
 					if saved_wad != file_fingerprint(self.map_wad) or not (saved_script and saved_script.startswith(script_hash)):
 						outdated += 1
 
+			global_wad = DEFAULT_FINAL_DIR / "Global.wad.client"
+			if global_wad.is_file():
+				glob_cache = get_canonical_cache_dir(cache_dir, global_wad)
+				saved_wad, saved_script = _read_cache_hashes(glob_cache)
+				if saved_wad:
+					valid_cached_count += 1
+					if saved_wad != file_fingerprint(global_wad) or saved_script != script_hash:
+						outdated += 1
+
 			if outdated == 0:
 				for wad_entry in cache_dir.iterdir():
 					if not wad_entry.is_dir() or not wad_entry.name.lower().endswith(".wad.client"):
 						continue
-					if wad_entry.name.lower() == self.map_wad.name.lower():
+					if wad_entry.name.lower() in (self.map_wad.name.lower(), "global.wad.client", "ui.wad.client"):
 						continue
 					saved_wad, saved_script = _read_cache_hashes(wad_entry)
 					if saved_wad:
@@ -3580,14 +4972,6 @@ class TkApp:
 				self.root.after(0, lambda: self._set_status_badge("MOD UP TO DATE", self.C_GREEN_SUCCESS))
 		except Exception:
 			self.root.after(0, lambda: self._set_status_badge("MOD READY", self.C_GOLD_ACCENT))
-
-	def select_all(self) -> None:
-		for _, _, var in self.module_defs:
-			var.set(True)
-
-	def deselect_all(self) -> None:
-		for _, _, var in self.module_defs:
-			var.set(False)
 
 	def _set_buttons_state(self, state: str) -> None:
 		self.btn_compile.config(state=state)
@@ -3651,9 +5035,9 @@ class TkApp:
 					self.status_var.set("100%")
 					self.phase_var.set("PACKAGE DONE!")
 					self.counter_var.set("")
+					pkg_name = item.get("message", "Package")
 					self.current_file_var.set("Package generated successfully!")
-					fantome_name = item.get("message", "VanillaTrueMod.fantome")
-					self._append_trace(f"[100.0%] ✔ SUCCESS: {fantome_name}", tag="green")
+					self._append_trace(f"[100.0%] ✔ SUCCESS: {pkg_name}", tag="green")
 					self._set_buttons_state(tk.NORMAL)
 					self._set_status_badge("MOD UP TO DATE", self.C_GREEN_SUCCESS)
 
@@ -3665,7 +5049,7 @@ class TkApp:
 						except Exception:
 							pass
 
-					messagebox.showinfo("Success", f"Mod package built successfully!\n\nFile: {fantome_name}")
+					messagebox.showinfo("Success", f"Mod package built successfully!\n\nPackage: {pkg_name}")
 				elif typ == "error":
 					self._set_buttons_state(tk.NORMAL)
 					self._set_status_badge("BUILD FAILED", self.C_RED_ERROR)
@@ -3684,21 +5068,33 @@ class TkApp:
 		self.root.after(30, self.poll_queue)
 
 	def start_build(self) -> None:
-		options = {
-			"accents": self.chk_accents.get(),
-			"wards": self.chk_wards.get(),
-			"structures": self.chk_structures.get(),
-			"minions": self.chk_minions.get(),
-			"finishers": self.chk_finishers.get(),
-			"recalls": self.chk_recalls.get(),
-			"champions": self.chk_champions.get(),
-		}
-		if not any(options.values()):
-			messagebox.showwarning("Empty Scope", "Please select at least one restoration module to compile!")
-			return
+		pkg_fmt = self.pkg_format_var.get().lower()
+
+		if pkg_fmt == "modpkg":
+			options = {
+				"accents": True,
+				"wards": True,
+				"structures": True,
+				"minions": True,
+				"finishers": True,
+				"recalls": True,
+				"champions": True,
+			}
+		else:
+			options = {
+				"accents": self.chk_accents.get(),
+				"wards": self.chk_wards.get(),
+				"structures": self.chk_structures.get(),
+				"minions": self.chk_minions.get(),
+				"finishers": self.chk_finishers.get(),
+				"recalls": self.chk_recalls.get(),
+				"champions": self.chk_champions.get(),
+			}
+			if not any(options.values()):
+				messagebox.showwarning("Empty Scope", "Please select at least one restoration module to compile!")
+				return
 
 		self._set_status_badge("BUILDING...", self.C_YELLOW_ACTIVE)
-
 		self._set_buttons_state(tk.DISABLED)
 		self.error_btn.pack_forget()
 		self.percent_var.set(0.0)
@@ -3713,10 +5109,10 @@ class TkApp:
 		self.trace.delete("1.0", tk.END)
 		self.trace.configure(state=tk.DISABLED)
 
-		t = threading.Thread(target=lambda: self.worker_thread(options), daemon=True)
+		t = threading.Thread(target=lambda: self.worker_thread(options, pkg_fmt), daemon=True)
 		t.start()
 
-	def worker_thread(self, options: dict[str, bool]) -> None:
+	def worker_thread(self, options: dict[str, bool], pkg_fmt: str) -> None:
 		try:
 			def emit_progress(percent: float, phase: str, status: str, current: str = ""):
 				self.queue.put({
@@ -3732,32 +5128,12 @@ class TkApp:
 			scheduler = ProgressScheduler(options, self.map_wad, self.ui_wad, champion_wads)
 
 			emit_progress(scheduler.pct("tools", 0.0), "PROCESSING TOOLS", "", "Connecting to LTK CI/CD repository...")
-
-			def on_tool_progress(msg: str):
-				emit_progress(scheduler.pct("tools", 0.5), "Tools", "", msg)
-
-			ensure_toolkit_binaries(cfg["tools_dir"], force=False, progress_callback=on_tool_progress)
+			ensure_toolkit_binaries(cfg["tools_dir"], force=False, progress_callback=lambda m: emit_progress(scheduler.pct("tools", 0.5), "Tools", "", m))
 			emit_progress(scheduler.pct("tools", 1.0), "TOOLS DONE", "", "LTK tools verified and ready.")
 
-
 			emit_progress(scheduler.pct("hashes", 0.0), "PROCESSING HASHES", "", "Checking CommunityDragon hashes...")
-
-			hash_progress_count = [0]
-			total_hash_files = 5
-
-			def on_hash_progress(msg: str):
-				hash_progress_count[0] += 1
-				sub_ratio = min(0.95, hash_progress_count[0] / total_hash_files)
-				emit_progress(
-					scheduler.pct("hashes", sub_ratio),
-					"Hashes",
-					f"({min(hash_progress_count[0], total_hash_files)}/{total_hash_files})",
-					msg,
-				)
-
-			ensure_ritobin_hashes(cfg["hashes_dir"], force=False, progress_callback=on_hash_progress)
+			ensure_ritobin_hashes(cfg["hashes_dir"], force=False, progress_callback=lambda m: emit_progress(scheduler.pct("hashes", 0.5), "Hashes", "", m))
 			emit_progress(scheduler.pct("hashes", 1.0), "HASHES DONE", "", "Hashes verified and synchronized.")
-
 
 			result = build_vanilla_pipeline(
 				self.map_wad,
@@ -3768,28 +5144,16 @@ class TkApp:
 				progress_callback=emit_progress,
 				cfg=cfg,
 				scheduler=scheduler,
+				package_format=pkg_fmt,
 			)
 
 			if self.dry_run:
 				self.queue.put({"type": "done", "message": "Simulation finished; no files generated."})
 				return
 
-			emit_progress(scheduler.pct("package", 0.0), "PROCESSING PACKAGE", "", "Cataloging assets and assembling metadata...")
-			fantome = create_standalone_fantome(
-				cfg["cache_dir"],
-				result["ghost_path"],
-				allowed_wads=result["allowed_wads"],
-				options=result["options"],
-				dry_run=False,
-				progress_callback=lambda ratio, phase, stat, curr="": emit_progress(
-					scheduler.pct("package", ratio),
-					"Package",
-					stat,
-					curr,
-				),
-			)
-			emit_progress(100.0, "PACKAGE DONE", "", f"Package completed: {fantome.name}")
-			self.queue.put({"type": "done", "message": f"{fantome.name}"})
+			pkg_obj = result.get("output_package")
+			pkg_name = pkg_obj.name if pkg_obj else f"VanillaTrueMod.{pkg_fmt}"
+			self.queue.put({"type": "done", "message": pkg_name})
 		except Exception as e:
 			import traceback
 			detail = traceback.format_exc()
@@ -3835,21 +5199,20 @@ class TkApp:
 						if not download_url:
 							download_url = f"{GITHUB_REPO_URL}/releases/download/{latest_tag}/VanillaTrueBuilder.zip"
 
-					html_url = data.get("html_url") or f"{GITHUB_REPO_URL}/releases/tag/{latest_tag}"
-					if getattr(sys, "frozen", False):
-						self.root.after(0, lambda: self._start_silent_update(download_url, latest_tag))
-					else:
-						self.root.after(0, lambda: self._notify_app_update(latest_tag, html_url))
+						html_url = data.get("html_url") or f"{GITHUB_REPO_URL}/releases/tag/{latest_tag}"
+						if getattr(sys, "frozen", False):
+							self.root.after(0, lambda: self._start_silent_update(download_url, latest_tag))
+						else:
+							self.root.after(0, lambda: self._notify_app_update(latest_tag, html_url))
 		except Exception:
 			pass
 
 	def _start_silent_update(self, download_url: str, latest_tag: str) -> None:
-
 		if hasattr(self, "btn_compile") and str(self.btn_compile["state"]) == "disabled":
 			return
 
 		self._set_status_badge(f"UPDATING {latest_tag}...", self.C_YELLOW_ACTIVE)
-		self._append_trace(f"[AUTO-UPDATE] Nova versão {latest_tag} encontrada. Atualizando silenciosamente...", tag="gold")
+		self._append_trace(f"[AUTO-UPDATE] New version {latest_tag} detected. Updating silently...", tag="gold")
 
 		def _run_update():
 			success = perform_silent_auto_update(
@@ -3895,14 +5258,14 @@ class TkApp:
 
 
 def launch_auditor_window():
-    try:
-        import auditor
-        auditor.APP_VERSION = APP_VERSION
-        aud_root = tk.Tk()
-        aud_app = auditor.ChampionAuditorApp(aud_root)
-        aud_root.mainloop()
-    except Exception as e:
-        messagebox.showerror("Error", f"Failed to launch Auditor: {e}")
+	try:
+		import auditor
+		auditor.APP_VERSION = APP_VERSION
+		aud_root = tk.Tk()
+		aud_app = auditor.ChampionAuditorApp(aud_root)
+		aud_root.mainloop()
+	except Exception as e:
+		messagebox.showerror("Error", f"Failed to launch Auditor: {e}")
 
 
 if __name__ == "__main__":
