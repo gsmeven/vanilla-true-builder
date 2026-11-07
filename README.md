@@ -3,7 +3,7 @@
 # Vanilla True Builder
 
 **The ultimate canonical Vanilla mod builder for [League of Legends](https://www.leagueoflegends.com).**  
-*Build pure, zero-bloat vanilla mods in seconds.*
+*Build a pure, zero-bloat vanilla mod in seconds.*
 
 [![Release](https://img.shields.io/github/v/release/gsmeven/vanilla-true-builder?style=for-the-badge&logo=github&color=0ac8b9&logoColor=white)](https://github.com/gsmeven/vanilla-true-builder/releases)
 [![CI/CD Tools](https://img.shields.io/badge/CI%2FCD-vtb--ltk--tools-c8aa6e?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/gsmeven/vtb-ltk-tools)
