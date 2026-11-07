@@ -102,7 +102,7 @@ python auditor.py
 ```
 
 > [!NOTE]
-> On the first build from source, VTB will automatically connect to [vtb-ltk-tools](https://github.com/gsmeven/vtb-ltk-tools) to download verified binaries (`wadtools.exe`, `ritobin.exe`) and merge the latest CommunityDragon game hash dictionaries (`hashes.game.txt`).
+> On the first build from source, VTB will automatically connect to [vtb-ltk-tools](https://github.com/gsmeven/vtb-ltk-tools) to download verified binaries (`wadtools.exe`, `ritobin.exe`, `league-mod.exe`) and merge the latest CommunityDragon game hash dictionaries (`hashes.game.txt`).
 
 ## 🧰 Modules
 
