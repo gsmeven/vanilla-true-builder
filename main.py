@@ -1009,9 +1009,6 @@ def _is_mod_target_file(wad_name: str, rel_path: str, options: dict[str, bool] |
 		if rel_lower.endswith("maps/shipping/map11/map11.bin") or rel_lower.endswith("/map11.bin"):
 			return opt_accents
 
-		if "particle" in rel_lower:
-			return opt_accents
-
 	return False
 
 
@@ -2788,6 +2785,12 @@ def pack_modpkg_project(
 	def on_cmd_output(line: str):
 		if progress_callback:
 			progress_callback(0.85, "Package", f"({total}/{total})", f"league-mod › {line}")
+
+	for f in list(project_dir.rglob("*")):
+		if f.is_file():
+			clean_name = re.sub(r'(?i)\.ltk(?:\.[a-z0-9_]+)?$', '', f.name)
+			if clean_name != f.name:
+				f.replace(f.with_name(clean_name))
 
 	cmd = [
 		str(league_mod), "pack",
