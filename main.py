@@ -321,7 +321,7 @@ MAP_CHAMPION_CHARACTERS = {
 EVENT_CHARACTERS = {
 	"hol_clickable",
 	"npc_worldscup",
-	"khazixstatue",
+	"npc_khazixstatue",
 }
 
 BANNER_CHARACTERS = {
