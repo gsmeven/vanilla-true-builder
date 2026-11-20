@@ -254,13 +254,6 @@ _ACCENT_OMISSION_PATTERNS = (
 
 _RECALL_VFX_PATTERN = re.compile(r'(?i)(?<![a-z0-9])Recall_(?:Honor|Challenger)\w*')
 
-_OTHER_INTEGRITY = {
-	"ha",
-	"bw",
-	"bilgewater",
-	"aram",
-}
-
 _TARGET_TYPES = {
 	"vfxsystemdefinitiondata",
 	"staticmaterialdef",
@@ -891,7 +884,7 @@ def _iter_map11_master_vital_bins(root: Path) -> list[Path]:
 					continue
 
 				if char_name in all_target_chars:
-					if char_name in {"turret", "turretrubble", "inhibitor", "nexus"}:
+					if char_name in {"turret", "turretrubble", "inhibitor", "nexus", "sruap_turret_order5", "preseason_turret_shield"}:
 						if re.fullmatch(r"skin\d+\.bin", file_lower):
 							vitals.append(p)
 					elif char_name in MINION_CHARACTERS:
@@ -1019,10 +1012,10 @@ def _is_mod_target_file(wad_name: str, rel_path: str, options: dict[str, bool] |
 					return False
 				skin_id = m_skin.group(1)
 
-				if char_name in {"turret", "inhibitor", "nexus"}:
+				if char_name in {"turret", "inhibitor", "nexus", "preseason_turret_shield"}:
 					return opt_structures and skin_id not in {"0", "1", "2", "3"}
 
-				if char_name == "turretrubble":
+				if char_name in {"turretrubble", "sruap_turret_order5"}:
 					return opt_structures and skin_id not in {"0", "1"}
 
 				if skin_id in {"0", "1"} and char_name in MINION_CHARACTERS:
@@ -1340,7 +1333,7 @@ def _normalize_synced_chunk_skins(chunk_key: str, chunk_blk: str, base_chunk_blk
 			prefix, char_part = m.group(1), m.group(2).lower()
 			if not k_lower.endswith('/srs_structures"') and char_part not in (STRUCTURE_CHARACTERS | MONSTER_CHARACTERS | MINION_CHARACTERS | WARD_CHARACTERS):
 				return m.group(0)
-			if char_part in {"turret", "inhibitor", "nexus"} and "chaos" in item_lower and "order" not in item_lower:
+			if char_part in {"turret", "inhibitor", "nexus", "preseason_turret_shield"} and ("chaos" in item_lower or "choas" in item_lower) and "order" not in item_lower:
 				return f'{prefix}Skin3"'
 			return f'{prefix}Skin0"'
 
@@ -1851,6 +1844,11 @@ def _sanitize_map11_bin_text(text: str, active_themes: set[str] | None = None) -
 		out_lines.append(new_block)
 
 	out_text = "".join(out_lines)
+	out_text, c_load = re.subn(
+		r'(?i)"assets/ux/loadingscreen/(?!srbackground\.tex)(?:sr|milkshake|snowdown|worlds)[^"]*\.tex"',
+		'"assets/ux/loadingscreen/srbackground.tex"',
+		out_text,
+	)
 	theme_parts = ["milkshake", "snowdown", *(p.pattern for p in _ACCENT_OMISSION_PATTERNS)]
 	for t in sorted(active_themes or ()):
 		if t not in {"milkshake", "snowdown"}:
@@ -1858,7 +1856,7 @@ def _sanitize_map11_bin_text(text: str, active_themes: set[str] | None = None) -
 			theme_parts.append(rf"(?:(?<![a-z0-9]){esc}(?![a-z0-9])|/{esc}/|srs_{esc}|{esc}_)")
 	vfx_pat = re.compile(rf'(?:{"|".join(theme_parts)})', re.IGNORECASE)
 	out_text, c_vfx = _empty_vfx_emitters(out_text, key_pattern=vfx_pat)
-	return out_text, changes + c_vfx
+	return out_text, changes + c_load + c_vfx
 
 
 def _sanitize_text_content(text: str, filename: str, active_themes: set[str] | None = None) -> tuple[str, int]:
@@ -2660,16 +2658,91 @@ def _expand_ward_skin0_only_hash(char_name: str, base_text: str, target_skin: st
 	return text
 
 
-_OTHER_TAGS = "|".join(sorted(_OTHER_INTEGRITY, key=len, reverse=True))
-_OTHER_INTEGRITY_PATTERN = re.compile(rf'(?i)(?<![a-z0-9])(?:{_OTHER_TAGS})(?![a-z0-9])')
-_OTHER_INTEGRITY_PATHS = re.compile(rf'(?i)[/\\](?:{_OTHER_TAGS})[/\\]')
+def _collect_map12_protected_skins(
+	map_wad: Path,
+	tools: dict,
+	dry_run: bool = False,
+) -> set[tuple[str, str]]:
+	protected: set[tuple[str, str]] = set()
+	map12_wad = Path(map_wad).with_name("Map12.wad.client")
+	if dry_run or not map12_wad.is_file():
+		return protected
 
-def is_other_mode_structure(skin_name: str, content: str = "") -> bool:
-	if skin_name and _OTHER_INTEGRITY_PATTERN.search(skin_name):
-		return True
-	if content and _OTHER_INTEGRITY_PATHS.search(content):
-		return True
-	return False
+	with tempfile.TemporaryDirectory(dir=str(get_temp_workspace()), prefix="vanilla_map12_") as temp_m12_str:
+		temp_m12 = Path(temp_m12_str)
+		extract_wad(
+			map12_wad,
+			temp_m12,
+			tools,
+			filter_type="bin",
+			filter_pattern=r"(?i)(map12\.bin$|\.materials\.bin$)",
+			dry_run=dry_run,
+		)
+
+		map12_bin = next((p for p in temp_m12.rglob("map12.bin") if p.is_file()), None)
+		if not map12_bin:
+			return protected
+
+		decompile_bin_files(
+			temp_m12,
+			tools,
+			dry_run=dry_run,
+			file_selector=lambda _: [map12_bin],
+			parallel=False,
+		)
+
+		map12_txt_path = map12_bin.with_name(map12_bin.name + ".txt")
+		if not map12_txt_path.is_file():
+			return protected
+
+		try:
+			map12_txt = map12_txt_path.read_text(encoding="utf-8", errors="ignore")
+		except OSError:
+			return protected
+
+		linked_stems = {
+			m.group(1).replace("\\", "/").rstrip("/").split("/")[-1].lower()
+			for m in re.finditer(r'(?i)\bmMapContainerLink\s*:\s*\w+\s*=\s*"([^"]+)"', map12_txt)
+		}
+
+		linked_materials = [
+			p for p in sorted(temp_m12.rglob("*.materials.bin"))
+			if p.is_file() and p.name[:-len(".materials.bin")].lower() in linked_stems
+		]
+		if linked_materials:
+			decompile_bin_files(
+				temp_m12,
+				tools,
+				dry_run=dry_run,
+				file_selector=lambda _: linked_materials,
+				parallel=True,
+			)
+
+		texts_to_scan = [map12_txt]
+		for mat_bin in linked_materials:
+			mat_txt = mat_bin.with_name(mat_bin.name + ".txt")
+			if mat_txt.is_file():
+				try:
+					texts_to_scan.append(mat_txt.read_text(encoding="utf-8", errors="ignore"))
+				except OSError:
+					pass
+
+		allowed_chars = STRUCTURE_CHARACTERS | MONSTER_CHARACTERS | MINION_CHARACTERS | WARD_CHARACTERS
+		skin_ref_pat = re.compile(r'(?i)"Characters/([^"/]+)/Skins/Skin(\d+)"')
+		override_pat = re.compile(r'(?i)Character\s*:\s*\w+\s*=\s*"Characters/([^"/]+)"\s*SkinID\s*:\s*\w+\s*=\s*(\d+)')
+		for content in texts_to_scan:
+			for m in skin_ref_pat.finditer(content):
+				c_name = m.group(1).strip().lower()
+				if c_name in allowed_chars or (c_name.startswith("sru_") and "minion" in c_name):
+					protected.add((c_name, str(int(m.group(2)))))
+			for m in override_pat.finditer(content):
+				c_name = m.group(1).strip().lower()
+				if c_name in allowed_chars or (c_name.startswith("sru_") and "minion" in c_name):
+					protected.add((c_name, str(int(m.group(2)))))
+
+	if protected:
+		LOG.info("Protected %d Map12 character skins from ARAM declarations", len(protected))
+	return protected
 
 
 # ==============================================================================
@@ -2679,7 +2752,9 @@ def process_map11_master_characters(
 	map11_wad_dir: Path,
 	dry_run: bool = False,
 	progress_callback: Callable[[int, int, str], None] | None = None,
+	protected_skins: set[tuple[str, str]] | None = None,
 ) -> list[Path]:
+	protected_skins = protected_skins or set()
 	char_skins_dirs: dict[str, Path] = {}
 	candidate_roots = [
 		map11_wad_dir / "data" / "characters",
@@ -2711,7 +2786,7 @@ def process_map11_master_characters(
 		if not skins_dir or not skins_dir.is_dir():
 			continue
 
-		if char_name in {"turret", "inhibitor", "nexus"}:
+		if char_name in {"turret", "inhibitor", "nexus", "preseason_turret_shield"}:
 			base_0 = skins_dir / "skin0.bin.txt"
 			base_1 = skins_dir / "skin1.bin.txt"
 			base_2 = skins_dir / "skin2.bin.txt"
@@ -2722,6 +2797,8 @@ def process_map11_master_characters(
 					if not m or m.group(1) in {"0", "1", "2", "3"}:
 						continue
 					skin_id = m.group(1)
+					if (char_name, str(int(skin_id))) in protected_skins:
+						continue
 					try:
 						curr_txt = p.read_text(encoding="utf-8", errors="ignore")
 					except OSError:
@@ -2730,15 +2807,18 @@ def process_map11_master_characters(
 					m_name = re.search(r'(?i)\bchampionSkinName:\s*string\s*=\s*"([^"]+)"', curr_txt)
 					s_name = m_name.group(1).lower() if m_name else ""
 
-					if is_other_mode_structure(s_name, curr_txt):
-						continue
-
-					if "chaos" in s_name:
+					if "chaos" in s_name or "choas" in s_name:
 						is_chaos = True
 					elif "order" in s_name:
 						is_chaos = False
 					else:
-						is_chaos = ((int(skin_id) % 4) in {2, 3})
+						mesh_str = " ".join(re.findall(r'(?i)(?:skeleton|simpleSkin|texture)\s*:\s*\w+\s*=\s*"([^"]+)"', curr_txt)).lower()
+						if re.search(r'(?<![a-z])(?:chaos|choas)(?![a-z])', mesh_str):
+							is_chaos = True
+						elif re.search(r'(?<![a-z])order(?![a-z])', mesh_str):
+							is_chaos = False
+						else:
+							is_chaos = ((int(skin_id) % 4) in {2, 3})
 
 					if "red" in s_name:
 						is_red = True
@@ -2768,6 +2848,8 @@ def process_map11_master_characters(
 					if not m or m.group(1) in {"0", "1"}:
 						continue
 					skin_id = m.group(1)
+					if (char_name, str(int(skin_id))) in protected_skins:
+						continue
 					try:
 						curr_txt = p.read_text(encoding="utf-8", errors="ignore")
 					except OSError:
@@ -2776,13 +2858,53 @@ def process_map11_master_characters(
 					m_name = re.search(r'(?i)\bchampionSkinName:\s*string\s*=\s*"([^"]+)"', curr_txt)
 					s_name = m_name.group(1).lower() if m_name else ""
 
-					if is_other_mode_structure(s_name, curr_txt):
+					if re.search(r'(?<![a-z0-9])(?:ha|bw|bilgewater|aram)(?![a-z0-9])', s_name):
 						continue
 
-					curr_lower = curr_txt.lower()
-					is_chaos = ("chaos" in s_name or "chaos" in curr_lower or "red" in s_name or "red" in curr_lower or (int(skin_id) % 2 == 1))
+					if "chaos" in s_name or "red" in s_name:
+						is_chaos = True
+					elif "order" in s_name or "blue" in s_name:
+						is_chaos = False
+					else:
+						curr_lower = curr_txt.lower()
+						is_chaos = ("chaos" in curr_lower or "red" in curr_lower or (int(skin_id) % 2 == 1))
 					target_base = "1" if is_chaos else "0"
 					rubble_tasks.append((char_name, skins_dir, skin_id, target_base))
+			continue
+
+		if char_name == "sruap_turret_order5":
+			base_0 = skins_dir / "skin0.bin.txt"
+			base_1 = skins_dir / "skin1.bin.txt"
+			if base_0.is_file() and base_1.is_file():
+				for p in sorted(skins_dir.glob("skin*.bin.txt")):
+					m = re.fullmatch(r"skin(\d+)\.bin\.txt", p.name, re.IGNORECASE)
+					if not m or m.group(1) in {"0", "1"}:
+						continue
+					skin_id = m.group(1)
+					if (char_name, str(int(skin_id))) in protected_skins:
+						continue
+					try:
+						curr_txt = p.read_text(encoding="utf-8", errors="ignore")
+					except OSError:
+						curr_txt = ""
+
+					m_name = re.search(r'(?i)\bchampionSkinName:\s*string\s*=\s*"([^"]+)"', curr_txt)
+					s_name = m_name.group(1).lower() if m_name else ""
+
+					curr_lower = curr_txt.lower()
+					if "red" in s_name:
+						is_red = True
+					elif "blue" in s_name:
+						is_red = False
+					elif "turret_red_" in curr_lower or "_red.tex" in curr_lower:
+						is_red = True
+					elif "turret_blue_" in curr_lower or "_blue.tex" in curr_lower:
+						is_red = False
+					else:
+						is_red = (int(skin_id) % 2 == 1)
+
+					target_base_id = "1" if is_red else "0"
+					turret_tasks.append((char_name, skins_dir, skin_id, target_base_id))
 			continue
 
 		if char_name in MINION_CHARACTERS:
@@ -2794,6 +2916,8 @@ def process_map11_master_characters(
 					if not m or m.group(1) in {"0", "1"}:
 						continue
 					skin_id = m.group(1)
+					if (char_name, str(int(skin_id))) in protected_skins:
+						continue
 					is_mirror = (int(skin_id) % 2 == 1)
 					target_base = "1" if (is_mirror and minion_base_1.is_file()) else "0"
 					minion_tasks.append((char_name, skins_dir, skin_id, target_base))
@@ -2805,6 +2929,8 @@ def process_map11_master_characters(
 		for p in sorted(skins_dir.glob("skin*.bin")):
 			m = re.fullmatch(r"skin(\d+)\.bin", p.name, re.IGNORECASE)
 			if m and m.group(1) != "0":
+				if (char_name, str(int(m.group(1)))) in protected_skins:
+					continue
 				standard_tasks.append((char_name, skins_dir, m.group(1)))
 
 	sightward_skins_dir = char_skins_dirs.get("sightward")
@@ -2920,6 +3046,8 @@ def process_map11_master_characters(
 		if sightward_base_txt:
 			for skin_id in valid_ward_skin_ids:
 				curr_op += 1
+				if ("sightward", str(int(skin_id))) in protected_skins:
+					continue
 				target_skin = f"Skin{skin_id}"
 				text = fast_vanilla_revert(sightward_base_txt, target_skin, skin_numeric_id=None, char_name="sightward")
 				out_file = sightward_skins_dir / f"skin{skin_id}.bin.txt"
@@ -2932,6 +3060,8 @@ def process_map11_master_characters(
 		if yellowtrinket_base_txt and yellowtrinket_skins_dir:
 			for skin_id in valid_ward_skin_ids:
 				curr_op += 1
+				if ("yellowtrinket", str(int(skin_id))) in protected_skins:
+					continue
 				target_skin = f"Skin{skin_id}"
 				text = _expand_ward_skin0_only_hash("YellowTrinket", yellowtrinket_base_txt, target_skin)
 				out_file = yellowtrinket_skins_dir / f"skin{skin_id}.bin.txt"
@@ -2944,6 +3074,8 @@ def process_map11_master_characters(
 		if jammerdevice_base_txt and jammerdevice_skins_dir:
 			for skin_id in valid_ward_skin_ids:
 				curr_op += 1
+				if ("jammerdevice", str(int(skin_id))) in protected_skins:
+					continue
 				target_skin = f"Skin{skin_id}"
 				text = _expand_ward_skin0_only_hash("JammerDevice", jammerdevice_base_txt, target_skin)
 				out_file = jammerdevice_skins_dir / f"skin{skin_id}.bin.txt"
@@ -2956,6 +3088,8 @@ def process_map11_master_characters(
 		if bluetrinket_base_txt and bluetrinket_skins_dir:
 			for skin_id in valid_ward_skin_ids:
 				curr_op += 1
+				if ("bluetrinket", str(int(skin_id))) in protected_skins:
+					continue
 				target_skin = f"Skin{skin_id}"
 				text = _expand_ward_skin0_only_hash("BlueTrinket", bluetrinket_base_txt, target_skin)
 				out_file = bluetrinket_skins_dir / f"skin{skin_id}.bin.txt"
@@ -3481,9 +3615,9 @@ def build_layer_structures(
 						if not m:
 							continue
 						skin_id = m.group(1)
-						if char_name in {"turret", "inhibitor", "nexus"} and skin_id in {"0", "1", "2", "3"}:
+						if char_name in {"turret", "inhibitor", "nexus", "preseason_turret_shield"} and skin_id in {"0", "1", "2", "3"}:
 							continue
-						if char_name == "turretrubble" and skin_id in {"0", "1"}:
+						if char_name in {"turretrubble", "sruap_turret_order5"} and skin_id in {"0", "1"}:
 							continue
 						if skin_id == "0":
 							continue
@@ -3956,6 +4090,7 @@ def build_vanilla_pipeline(
 							),
 						)
 
+						protected_map12 = _collect_map12_protected_skins(map_wad, cfg, dry_run=dry_run)
 						generated_chars = process_map11_master_characters(
 							temp_dir,
 							dry_run=dry_run,
@@ -3965,6 +4100,7 @@ def build_vanilla_pipeline(
 								f"({idx}/{tot})",
 								f"Map11.wad.client › {name}",
 							),
+							protected_skins=protected_map12,
 						)
 
 						all_map_recompile = sorted(set(cleaned_elements + generated_chars))
@@ -4356,6 +4492,7 @@ def build_vanilla_pipeline(
 						),
 					)
 
+					protected_map12 = _collect_map12_protected_skins(map_wad, cfg, dry_run=dry_run)
 					generated_chars = process_map11_master_characters(
 						temp_dir,
 						dry_run=dry_run,
@@ -4365,6 +4502,7 @@ def build_vanilla_pipeline(
 							f"({idx}/{tot})",
 							f"Map11.wad.client › {name}",
 						),
+						protected_skins=protected_map12,
 					)
 
 					all_map_recompile = sorted(set(cleaned_elements + generated_chars))
