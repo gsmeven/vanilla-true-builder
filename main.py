@@ -1338,7 +1338,7 @@ def _normalize_synced_chunk_skins(chunk_key: str, chunk_blk: str, base_chunk_blk
 
 		def _fallback_skin(m: re.Match) -> str:
 			prefix, char_part = m.group(1), m.group(2).lower()
-			if not k_lower.endswith('/srs_structures"') and char_part not in (STRUCTURE_CHARACTERS | MINION_CHARACTERS | WARD_CHARACTERS):
+			if not k_lower.endswith('/srs_structures"') and char_part not in (STRUCTURE_CHARACTERS | MONSTER_CHARACTERS | MINION_CHARACTERS | WARD_CHARACTERS):
 				return m.group(0)
 			if char_part in {"turret", "inhibitor", "nexus"} and "chaos" in item_lower and "order" not in item_lower:
 				return f'{prefix}Skin3"'
@@ -3226,7 +3226,7 @@ def create_standalone_fantome(
 	opt_labels = {
 		"champions": "Champions",
 		"structures": "Structures",
-		"monsters": "Epic Monsters",
+		"monsters": "Neutral Monsters",
 		"minions": "Minions",
 		"wards": "Wards",
 		"accents": "Map Accents",
@@ -3340,7 +3340,7 @@ def init_mod_project_structure(
 		("base", 0, "Base transparent textures"),
 		("champions", 10, "Champion skins vanilla normalization"),
 		("structures", 20, "Canonical structure models and rubble"),
-		("monsters", 25, "Canonical epic monsters"),
+		("monsters", 25, "Canonical neutral monsters"),
 		("minions", 30, "Canonical faction minion silhouettes"),
 		("wards", 40, "Vision wards and trinkets normalization"),
 		("accents", 50, "Map clutter and trophy neutralization"),
@@ -4644,7 +4644,7 @@ def main() -> None:
 	parser.add_argument("--no-accents", action="store_true", help="Do not omit map accents, statues, banners and trophies")
 	parser.add_argument("--no-wards", action="store_true", help="Do not revert vision wards")
 	parser.add_argument("--no-structures", action="store_true", help="Do not revert structures (Turrets, Rubble, Inhibitors, Nexus, Shopkeepers)")
-	parser.add_argument("--no-monsters", action="store_true", help="Do not revert epic monsters (Baron, Herald, Voidgrubs)")
+	parser.add_argument("--no-monsters", action="store_true", help="Do not revert neutral monsters")
 	parser.add_argument("--no-minions", action="store_true", help="Do not revert minions and creeps")
 	parser.add_argument("--no-finishers", action="store_true", help="Do not neutralize nexus finishers")
 	parser.add_argument("--no-recalls", action="store_true", help="Do not neutralize special recall overlays (Honor, Challenger)")
@@ -5209,7 +5209,7 @@ class TkApp:
 			("Disable Map Accents", "Remove all event assets and clash banners", self.chk_accents),
 			("Disable Ward Skins", "Set all ward skins to default", self.chk_wards),
 			("Disable Structures Skins", "Restore all turrets, rubble, inhibitors, nexus and shopkeepers to default", self.chk_structures),
-			("Disable Monsters Skins", "Restore all epic monsters to default", self.chk_monsters),
+			("Disable Monsters Skins", "Restore all neutral monsters to default", self.chk_monsters),
 			("Disable Minions Skins", "Restore all minions to default", self.chk_minions),
 			("Disable Nexus Finishers", "Set all nexus finishers skins to default", self.chk_finishers),
 			("Disable Special Recalls", "Restore all special recalls to default", self.chk_recalls),

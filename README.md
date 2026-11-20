@@ -34,7 +34,7 @@
 
 Traditional custom mods rely on placeholder textures, foreign dummy meshes, or destructive overrides that trigger DirectX crashes and hitbox desynchronization. Instead, VTB operates natively on official Riot archives, leveraging proven reverse-engineering toolchains ([ritobin](https://github.com/LeagueToolkit/ritobin-tools)/[wadtools](https://github.com/LeagueToolkit/wadtools)) to patch game data directly at the engine level.
 
-Operating on a zero-asset doctrine, VTB restores a complete vanilla state without bundling foreign files. Across all supported modules, it rebinds champion skins, epic monsters, vision wards, and map assets back to local Base definitions, while routing structures and minions strictly to their canonical factions. Ground decals, props, nexus finishers, and special recall overlays are neutralized at the engine property level. If graphics driver contracts demand valid assets to suppress clutter safely, VTB synthesizes hardware-compliant bytecode in memory on the fly. This ensures authentic visual clarity with zero file bloat, uncompromised hitbox parity, and a native experience.
+Operating on a zero-asset doctrine, VTB restores a complete vanilla state without bundling foreign files. Across all supported modules, it rebinds champion skins, neutral monsters, vision wards, and map assets back to local Base definitions, while routing structures and minions strictly to their canonical factions. Ground decals, props, nexus finishers, and special recall overlays are neutralized at the engine property level. If graphics driver contracts demand valid assets to suppress clutter safely, VTB synthesizes hardware-compliant bytecode in memory on the fly. This ensures authentic visual clarity with zero file bloat, uncompromised hitbox parity, and a native experience.
 
 > [!IMPORTANT]
 > * **First Build:** Takes a few minutes initially to process and sanitize all needed game WADs in parallel.
@@ -112,7 +112,7 @@ Every restoration module can be toggled independently to match your restoration 
 | :--- | :--- | :--- | :--- |
 | [**Champions**](https://wiki.leagueoflegends.com/Champion_skin) | All Champion Skins | Rebinds animation graph to `Skin0`, clones base rig/mesh properties, resets CAC, and injects in-place submesh aliases. | Canonical base animations, uniform silhouettes, and original spell readability. |
 | [**Structures**](https://wiki.leagueoflegends.com/Category:Structure) | Turrets, Rubble, Inhibitors, Nexus, Shopkeepers | Reverts team structures to default Order/Chaos bases; preserves ARAM/Bilgewater logic through structural integrity filters. | Base structures with canonical models. |
-| [**Epic Monsters**](https://wiki.leagueoflegends.com/en-us/Monster) | Baron Nashor, Rift Herald (pit & lane), Voidgrubs, Voidmites | Reverts server-forced seasonal monster skins (`Skin1+`) directly back to canonical `Skin0` inside `Map11.wad.client`. | Classic Baron, Herald, and Voidgrub silhouettes across all seasonal patches. |
+| [**Monsters**](https://wiki.leagueoflegends.com/en-us/Monster) | Neutral monsters (e.g., Baron Nashor, Rift Herald, Voidgrubs, Voidmites) | Reverts server-forced seasonal monster skins (`Skin1+`) directly back to canonical `Skin0` inside `Map11.wad.client`. | Classic neutral monster silhouettes across all seasonal patches. |
 | [**Minions**](https://wiki.leagueoflegends.com/Minion) | Melee, Ranged, Siege, and Super Minions | Re-indexes skin assignments to Faction IDs 0 and 1 without full map decompilation bloat. | Canonical minion silhouettes and wave readability. |
 | [**Wards**](https://wiki.leagueoflegends.com/Ward) | Sight, Yellow Trinket, Control/Jammer, Blue Trinket | Re-maps ward skin hashes to default base models across all inventory items. | Default ward silhouettes with uniform, canonical models. |
 | [**Map Accents**](https://wiki.leagueoflegends.com/Summoner%27s_Rift) | Clash Banners, Trophies, Sponsor Ads, Props, Decals | Rebinds seasonal maps to `Base_SRX`, canonicalizes ground textures, neutralizes `StaticMaterialDef` passes and seasonal VFX emitters, hides event props, and assigns 144-byte assets. | Vanilla clean SR with zero ground decals, trophies, or billboard clutter. |
@@ -408,7 +408,7 @@ python main.py --dry-run
 | `--ui-wad <path>` | `path` | Explicit path to `UI.wad.client`. |
 | `--no-champions` | `flag` | Skip champion skins restoration module. |
 | `--no-structures` | `flag` | Skip structures (turrets, rubble, inhibs, nexus, shopkeepers) module. |
-| `--no-monsters` | `flag` | Skip epic monsters (Baron, Rift Herald, Voidgrubs) module. |
+| `--no-monsters` | `flag` | Skip neutral monsters module. |
 | `--no-minions` | `flag` | Skip minions and super minions module. |
 | `--no-wards` | `flag` | Skip vision wards and trinkets normalization module. |
 | `--no-accents` | `flag` | Skip map accents, clash banners, and tournament statues module. |
