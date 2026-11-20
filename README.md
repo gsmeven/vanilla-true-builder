@@ -368,7 +368,7 @@ VanillaTrueMod.fantome
     └── <champion>.wad.client/
 ```
 
-* **Modular Layers (`.modpkg`):** Toggle individual modules (Champions, Structures, Epic Monsters, Minions, Wards, Accents, Finishers, Recalls) on the fly directly inside LTK Manager with zero rebuilding.
+* **Modular Layers (`.modpkg`):** Toggle individual modules (Champions, Structures, Monsters, Minions, Wards, Accents, Finishers, Recalls) on the fly directly inside LTK Manager with zero rebuilding.
 * **Details Tab:** Clean, concise description populated from manifest metadata without broken markdown tags.
 * **Readme Tab:** Displays the full overview, dynamic restoration status, and ecosystem dedications.
 * **Licenses Tab:** Compatible with LTK's license viewer via standard `LICENSE`.
