@@ -69,9 +69,10 @@ def perform_silent_auto_update(download_url: str, latest_tag: str, log_callback=
 	if not getattr(sys, "frozen", False):
 		return False
 
+	temp_dir: Path | None = None
 	try:
 		current_exe = Path(sys.executable).resolve()
-		temp_dir = Path(tempfile.gettempdir()) / f"vtb_update_{int(time.time())}"
+		temp_dir = Path(tempfile.gettempdir()) / "VanillaTrueTemp" / f"vtb_update_{int(time.time())}"
 		temp_dir.mkdir(parents=True, exist_ok=True)
 		zip_path = temp_dir / "update.zip"
 
@@ -106,11 +107,17 @@ def perform_silent_auto_update(download_url: str, latest_tag: str, log_callback=
 		current_exe.rename(old_exe)
 		shutil.move(str(new_exe_path), str(current_exe))
 
+		shutil.rmtree(temp_dir, ignore_errors=True)
+		temp_dir = None
+
 		subprocess.Popen([str(current_exe)] + sys.argv[1:], cwd=str(current_exe.parent))
 		os._exit(0)
 	except Exception as exc:
 		LOG.warning("Silent auto-update failed: %s", exc)
 		return False
+	finally:
+		if temp_dir and temp_dir.is_dir():
+			shutil.rmtree(temp_dir, ignore_errors=True)
 
 RAW_TRANSPARENT_TEX_BYTES = (
 	b"DDS \x7c\x00\x00\x00\x07\x10\x08\x00\x04\x00\x00\x00\x04\x00\x00\x00"
@@ -3806,9 +3813,77 @@ def pack_modpkg_project(
 
 	raise RuntimeError(f"Package output was not created at {output_dir}")
 
-	# ==============================================================================
+# ==============================================================================
 # DIRECTORY LIFECYCLE & SIGNALS (MAINPROCESS EXCLUSIVE)
 # ==============================================================================
+# DIRECTORY LIFECYCLE & SIGNALS (MAINPROCESS EXCLUSIVE)
+# ==============================================================================
+def _terminate_child_processes() -> None:
+	if sys.platform != "win32":
+		return
+	try:
+		import ctypes
+		from ctypes import wintypes
+
+		class PROCESSENTRY32W(ctypes.Structure):
+			_fields_ = [
+				("dwSize", wintypes.DWORD),
+				("cntUsage", wintypes.DWORD),
+				("th32ProcessID", wintypes.DWORD),
+				("th32DefaultHeapID", ctypes.c_size_t),
+				("th32ModuleID", wintypes.DWORD),
+				("cntThreads", wintypes.DWORD),
+				("th32ParentProcessID", wintypes.DWORD),
+				("pcPriClassBase", ctypes.c_long),
+				("dwFlags", wintypes.DWORD),
+				("szExeFile", wintypes.WCHAR * 260),
+			]
+
+		kernel32 = ctypes.windll.kernel32
+		kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+		kernel32.OpenProcess.restype = wintypes.HANDLE
+
+		snap = kernel32.CreateToolhelp32Snapshot(0x00000002, 0)
+		invalid_handle = ctypes.c_void_p(-1).value
+		if not snap or snap == invalid_handle:
+			return
+
+		children_by_parent: dict[int, list[int]] = {}
+		try:
+			entry = PROCESSENTRY32W()
+			entry.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+			if kernel32.Process32FirstW(snap, ctypes.byref(entry)):
+				while True:
+					children_by_parent.setdefault(entry.th32ParentProcessID, []).append(entry.th32ProcessID)
+					if not kernel32.Process32NextW(snap, ctypes.byref(entry)):
+						break
+		finally:
+			kernel32.CloseHandle(snap)
+
+		my_pid = os.getpid()
+		descendants: list[int] = []
+		bfs = list(children_by_parent.get(my_pid, ()))
+		seen = {my_pid}
+		while bfs:
+			pid = bfs.pop(0)
+			if pid in seen:
+				continue
+			seen.add(pid)
+			descendants.append(pid)
+			bfs.extend(children_by_parent.get(pid, ()))
+
+		for pid in reversed(descendants):
+			h_proc = kernel32.OpenProcess(0x0001 | 0x00100000, False, pid)
+			if h_proc:
+				try:
+					kernel32.TerminateProcess(h_proc, 1)
+					kernel32.WaitForSingleObject(h_proc, 1000)
+				finally:
+					kernel32.CloseHandle(h_proc)
+	except Exception:
+		pass
+
+
 def cleanup_temp_dirs() -> None:
 	if multiprocessing.current_process().name != "MainProcess":
 		return
@@ -3822,12 +3897,23 @@ def cleanup_temp_dirs() -> None:
 def cleanup_orphaned_temp_dirs() -> None:
 	if multiprocessing.current_process().name != "MainProcess":
 		return
-	if not DEFAULT_TEMP_DIR.is_dir():
-		return
 
 	candidates: list[Path] = []
-	for pattern in ("vanilla_builder_*", "vanilla_fantome_*", "vanilla_map11_*", "vanilla_champ_*", "vanilla_finisher_*", "vtb_*"):
-		candidates.extend(DEFAULT_TEMP_DIR.glob(pattern))
+	if DEFAULT_TEMP_DIR.is_dir():
+		for pattern in (
+			"VanillaTrue_Project",
+			"vanilla_builder_*",
+			"vanilla_fantome_*",
+			"vanilla_map11_*",
+			"vanilla_map12_*",
+			"vanilla_global_*",
+			"vanilla_champ_*",
+			"vanilla_finisher_*",
+			"vtb_*",
+		):
+			candidates.extend(DEFAULT_TEMP_DIR.glob(pattern))
+
+	candidates.extend(Path(tempfile.gettempdir()).glob("vtb_update_*"))
 
 	now = time.time()
 	for temp_dir in sorted({p.resolve() for p in candidates}, key=lambda p: (len(p.parts), str(p))):
@@ -5795,17 +5881,8 @@ class TkApp:
 			webbrowser.open(html_url)
 
 	def on_close(self) -> None:
+		_terminate_child_processes()
 		cleanup_temp_dirs()
-		if sys.platform == "win32":
-			try:
-				subprocess.run(
-					["taskkill", "/F", "/T", "/PID", str(os.getpid())],
-					creationflags=subprocess.CREATE_NO_WINDOW,
-					stdout=subprocess.DEVNULL,
-					stderr=subprocess.DEVNULL,
-				)
-			except Exception:
-				pass
 		os._exit(0)
 
 

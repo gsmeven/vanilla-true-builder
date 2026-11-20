@@ -58,6 +58,101 @@ def resolve_tool(name: str) -> Path:
 MAX_PARALLEL_JOBS = max(1, int((os.cpu_count() or 4) * 0.60))
 REPORT_LOCK = threading.Lock()
 
+AUDITOR_TEMP_DIR = Path(tempfile.gettempdir()) / "VanillaTrueAuditorTemp"
+
+
+def get_auditor_temp_workspace() -> Path:
+	AUDITOR_TEMP_DIR.mkdir(parents=True, exist_ok=True)
+	return AUDITOR_TEMP_DIR
+
+
+def cleanup_auditor_temp_dirs() -> None:
+	if AUDITOR_TEMP_DIR.is_dir():
+		shutil.rmtree(AUDITOR_TEMP_DIR, ignore_errors=True)
+
+
+def cleanup_auditor_orphaned_temp_dirs() -> None:
+	candidates: list[Path] = []
+	for base_dir in (AUDITOR_TEMP_DIR, Path(tempfile.gettempdir())):
+		if base_dir.is_dir():
+			for pattern in ("audit_*", "vanilla_restore_*"):
+				candidates.extend(base_dir.glob(pattern))
+
+	now = time.time()
+	for temp_dir in sorted({p.resolve() for p in candidates}, key=lambda p: (len(p.parts), str(p))):
+		if not temp_dir.is_dir():
+			continue
+		try:
+			if (now - temp_dir.stat().st_mtime) < 600:
+				continue
+			shutil.rmtree(temp_dir, ignore_errors=True)
+		except OSError:
+			pass
+
+def _terminate_child_processes() -> None:
+	if sys.platform != "win32":
+		return
+	try:
+		import ctypes
+		from ctypes import wintypes
+
+		class PROCESSENTRY32W(ctypes.Structure):
+			_fields_ = [
+				("dwSize", wintypes.DWORD),
+				("cntUsage", wintypes.DWORD),
+				("th32ProcessID", wintypes.DWORD),
+				("th32DefaultHeapID", ctypes.c_size_t),
+				("th32ModuleID", wintypes.DWORD),
+				("cntThreads", wintypes.DWORD),
+				("th32ParentProcessID", wintypes.DWORD),
+				("pcPriClassBase", ctypes.c_long),
+				("dwFlags", wintypes.DWORD),
+				("szExeFile", wintypes.WCHAR * 260),
+			]
+
+		kernel32 = ctypes.windll.kernel32
+		kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+		kernel32.OpenProcess.restype = wintypes.HANDLE
+
+		snap = kernel32.CreateToolhelp32Snapshot(0x00000002, 0)
+		invalid_handle = ctypes.c_void_p(-1).value
+		if not snap or snap == invalid_handle:
+			return
+
+		children_by_parent: dict[int, list[int]] = {}
+		try:
+			entry = PROCESSENTRY32W()
+			entry.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+			if kernel32.Process32FirstW(snap, ctypes.byref(entry)):
+				while True:
+					children_by_parent.setdefault(entry.th32ParentProcessID, []).append(entry.th32ProcessID)
+					if not kernel32.Process32NextW(snap, ctypes.byref(entry)):
+						break
+		finally:
+			kernel32.CloseHandle(snap)
+
+		my_pid = os.getpid()
+		descendants: list[int] = []
+		bfs = list(children_by_parent.get(my_pid, ()))
+		seen = {my_pid}
+		while bfs:
+			pid = bfs.pop(0)
+			if pid in seen:
+				continue
+			seen.add(pid)
+			descendants.append(pid)
+			bfs.extend(children_by_parent.get(pid, ()))
+
+		for pid in reversed(descendants):
+			h_proc = kernel32.OpenProcess(0x0001 | 0x00100000, False, pid)
+			if h_proc:
+				try:
+					kernel32.TerminateProcess(h_proc, 1)
+					kernel32.WaitForSingleObject(h_proc, 1000)
+				finally:
+					kernel32.CloseHandle(h_proc)
+	except Exception:
+		pass
 
 def get_ai_context() -> str:
 	search_paths = []
@@ -799,6 +894,7 @@ class ChampionAuditorApp:
 		self._context_pos = (0, 0)
 
 		self._configure_styles()
+		cleanup_auditor_orphaned_temp_dirs()
 		self._build_custom_titlebar()
 		self._build_ui()
 		self._populate_champion_list()
@@ -968,16 +1064,8 @@ class ChampionAuditorApp:
 
 	def on_close(self) -> None:
 		self._cleanup_empty_overrides()
-		if sys.platform == "win32":
-			try:
-				subprocess.run(
-					["taskkill", "/F", "/T", "/PID", str(os.getpid())],
-					creationflags=subprocess.CREATE_NO_WINDOW,
-					stdout=subprocess.DEVNULL,
-					stderr=subprocess.DEVNULL,
-				)
-			except Exception:
-				pass
+		_terminate_child_processes()
+		cleanup_auditor_temp_dirs()
 		os._exit(0)
 
 	def _configure_styles(self):
@@ -1590,7 +1678,7 @@ class ChampionAuditorApp:
 		if not ritobin_exe.is_file():
 			raise FileNotFoundError(f"ritobin.exe not found at {ritobin_exe}")
 
-		with tempfile.TemporaryDirectory(prefix=f"audit_{champ_name}_") as tmp_d_str:
+		with tempfile.TemporaryDirectory(dir=str(get_auditor_temp_workspace()), prefix=f"audit_{champ_name}_") as tmp_d_str:
 			tmp_dir = Path(tmp_d_str)
 
 			extract_regex = rf"(?i)(skins/skin\d+\.bin$|skins/(?:base|skin0|skin{skin_filter})/.*\.skn$)"
@@ -2133,7 +2221,7 @@ class ChampionAuditorApp:
 				ensure_toolkit_binaries(TOOLS_DIR)
 				ensure_ritobin_hashes(HASHES_DIR)
 
-				with tempfile.TemporaryDirectory(prefix=f"vanilla_restore_{champ}_") as tmp_d_str:
+				with tempfile.TemporaryDirectory(dir=str(get_auditor_temp_workspace()), prefix=f"vanilla_restore_{champ}_") as tmp_d_str:
 					temp_dir = Path(tmp_d_str)
 
 					char_name = champ.lower()
