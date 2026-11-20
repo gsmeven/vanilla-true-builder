@@ -1202,14 +1202,16 @@ def _insert_after_header(block_txt: str, header_regex: str, payload: str) -> str
 
 
 def _remove_field_block(block_txt: str, field_name: str) -> tuple[str, int]:
+	target_hash = _norm_rito_hash(field_name)
 	lines = block_txt.splitlines(keepends=True)
 	out_lines: list[str] = []
 	changes = 0
 	i = 0
-	pat = re.compile(rf'^[ \t]+{re.escape(field_name)}\s*:[^=\r\n]*=\s*\{{')
+	pat = re.compile(r'^[ \t]+([^\s:=]+)\s*:[^=\r\n]*=\s*\{')
 	while i < len(lines):
 		line = lines[i]
-		if pat.match(line):
+		m = pat.match(line)
+		if m and (m.group(1).lower() == field_name.lower() or _norm_rito_hash(m.group(1)) == target_hash):
 			clean = _clean_code_line(line)
 			depth = clean.count("{") - clean.count("}")
 			i += 1
@@ -1432,8 +1434,15 @@ def _sync_ranked_seasonal_map_container(
 		if not m_link:
 			continue
 		link_stem = m_link.group(1).replace("\\", "/").rstrip("/").split("/")[-1].lower()
-		has_overrides = "0x2d3285eb" in blk
-		override_count = blk.count("0x34a5a0c9")
+		has_overrides = any(
+			_norm_rito_hash(m_fld.group(1)) == 0x2d3285eb
+			for m_fld in re.finditer(r'^[ \t]+([^\s:=]+)\s*:[^=\r\n]*=', blk, re.MULTILINE)
+		)
+		override_count = sum(
+			1
+			for m_typ in re.finditer(r'^[ \t]+([^\s{=]+)\s*\{', blk, re.MULTILINE)
+			if _norm_rito_hash(m_typ.group(1)) == 0x34a5a0c9
+		)
 		prev_has, prev_cnt = skin_info.get(link_stem, (False, 0))
 		skin_info[link_stem] = (prev_has or has_overrides, max(prev_cnt, override_count))
 
