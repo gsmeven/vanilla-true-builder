@@ -13,7 +13,6 @@ import queue
 import re
 import shutil
 import signal
-import struct
 import subprocess
 import sys
 import tempfile
@@ -36,7 +35,7 @@ except Exception:
 LOG = logging.getLogger("vanilla_builder")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
-APP_VERSION = "v1.8.4"
+APP_VERSION = "v1.8.5"
 GITHUB_REPO_URL = "https://github.com/gsmeven/vanilla-true-builder"
 GITHUB_LATEST_API = "https://api.github.com/repos/gsmeven/vanilla-true-builder/releases/latest"
 
@@ -222,24 +221,17 @@ def resolve_app_icon() -> Path | None:
 # ==============================================================================
 # VANILLA GAME INTEGRITY RULES & CENTRALIZED REGEX DEFINITIONS
 # ==============================================================================
-def _rule(stem: str, target_canonical: str) -> tuple[re.Pattern, Callable[[re.Match], str]]:
+_SAMPLER_DEF_PAT = re.compile(r'(?is)StaticMaterialShaderSamplerDef\s*\{[^}]*\}')
+
+
+def _rule(stem: str, target_canonical: str) -> tuple[re.Pattern, re.Pattern, str]:
 	pattern_stem = rf'[\w-]*{re.escape(stem)}\w*'
-	pattern = re.compile(
-		rf'(["\'][^"\']*[/\\]{pattern_stem}["\'][^}}]*?texturePath:\s*file\s*=\s*)[^\r\n]+|'
-		rf'(["\'])[^"\']*(?:[/\\]|^){pattern_stem}\.tex\2',
-		flags=re.IGNORECASE
-	)
-
-	def _hybrid_replacer(match: re.Match) -> str:
-		if match.group(1):
-			return f'{match.group(1)}"{target_canonical}"'
-		quote = match.group(2)
-		return f'{quote}{target_canonical}{quote}'
-
-	return (pattern, _hybrid_replacer)
+	key_pattern = re.compile(rf'(?:[/\\]|^){pattern_stem}$', re.IGNORECASE)
+	tex_pattern = re.compile(rf'(["\'])[^"\']*(?:[/\\]|^){pattern_stem}\.tex\1', re.IGNORECASE)
+	return (key_pattern, tex_pattern, target_canonical)
 
 
-_SRS_TO_CANONICAL_TEX_RULES: tuple[tuple[re.Pattern, Callable[[re.Match], str]], ...] = (
+_SRS_TO_CANONICAL_TEX_RULES: tuple[tuple[re.Pattern, re.Pattern, str], ...] = (
 	_rule("Ground_C3_MidLane", "assets/maps/kitpieces/srx/base/textures/terrain_midlane_ground_a.tex"),
 	_rule("Ground_A1_AlcoveTop", "assets/maps/kitpieces/srs/base/textures/ground_a1_alcovetop_a.tex"),
 	_rule("Ground_E5_AlcoveBot", "assets/maps/kitpieces/srs/base/textures/ground_e5_alcovebot_a.tex"),
@@ -254,9 +246,10 @@ _SRS_TO_CANONICAL_TEX_RULES: tuple[tuple[re.Pattern, Callable[[re.Match], str]],
 )
 
 _ACCENT_OMISSION_PATTERNS = (
-	re.compile(r"(?i)plinths?"),
-	re.compile(r"(?i)hall_of_legends?"),
-	re.compile(r"(?i)(?<![a-z0-9])hol(?![a-z0-9])"),
+	re.compile(r"plinths?", re.IGNORECASE),
+	re.compile(r"hall_of_legends?", re.IGNORECASE),
+	re.compile(r"(?<![a-z0-9])hol(?![a-z0-9])", re.IGNORECASE),
+	re.compile(r"(?<![a-z0-9])(?:particles/worlds|worlds[-_\d/\\]*(?:troph(?:y|ies)|winner)|winner_teamlogo)", re.IGNORECASE),
 )
 
 _RECALL_VFX_PATTERN = re.compile(r'(?i)(?<![a-z0-9])Recall_(?:Honor|Challenger)\w*')
@@ -280,6 +273,16 @@ STRUCTURE_CHARACTERS = {
 	"nexus",
 	"sru_storekeepernorth",
 	"sru_storekeepersouth",
+	"sruap_turret_order5",
+	"preseason_turret_shield",
+}
+
+MONSTER_CHARACTERS = {
+	"sru_baron",
+	"sru_riftherald",
+	"sru_riftherald_mercenary",
+	"sru_horde",
+	"sru_horde_mini",
 }
 
 MINION_CHARACTERS = {
@@ -320,8 +323,12 @@ MAP_CHAMPION_CHARACTERS = {
 
 EVENT_CHARACTERS = {
 	"hol_clickable",
-	"npc_worldscup",
-	"npc_khazixstatue",
+	"sru_train",
+	"ha_ap_poro",
+	"ha_ap_poro_large",
+	"ha_ap_poro_small",
+	"ha_ap_poro_snowman",
+	"sru_porosprite",
 }
 
 BANNER_CHARACTERS = {
@@ -457,6 +464,7 @@ def _download_and_merge_game_hashes(
 
 	parts_downloaded: list[Path] = []
 	any_part_updated = False
+	network_failed = False
 	part_idx = 0
 
 	while True:
@@ -469,17 +477,22 @@ def _download_and_merge_game_hashes(
 			updated = _download_conditional(url, part_path, etag_path, progress_callback=progress_callback)
 			if updated:
 				any_part_updated = True
-			if part_path.is_file() and part_path.stat().st_size > 0:
-				parts_downloaded.append(part_path)
+			if not updated and not (part_path.is_file() and part_path.stat().st_size > 0):
+				network_failed = True
+				break
+			parts_downloaded.append(part_path)
 			part_idx += 1
 		except urllib.error.HTTPError as err:
 			if err.code == 404:
 				break
+			network_failed = True
+			break
 		except Exception:
+			network_failed = True
 			break
 
 	needs_merge = any_part_updated or not unified_game.is_file() or unified_game.stat().st_size < 1024
-	if parts_downloaded and needs_merge:
+	if parts_downloaded and needs_merge and not network_failed:
 		if progress_callback:
 			progress_callback("Merging game hash chunks into unified container...")
 		temp_unified = hashes_dir / "hashes.game.txt.tmp"
@@ -494,7 +507,7 @@ def _download_and_merge_game_hashes(
 			p.with_suffix(".etag").unlink(missing_ok=True)
 		if progress_callback:
 			progress_callback("Merged: hashes.game.txt")
-	elif not parts_downloaded:
+	elif not parts_downloaded and not network_failed:
 		monolithic_url = "https://raw.githubusercontent.com/CommunityDragon/Data/master/hashes/lol/hashes.game.txt"
 		etag_mono = hashes_dir / "hashes.game.txt.etag"
 		if force and etag_mono.exists():
@@ -538,6 +551,9 @@ def ensure_toolkit_binaries(
 
 	zip_dest = tools_dir / "tools.zip"
 	etag_path = tools_dir / "tools.zip.etag"
+
+	if not wadtools_path.is_file() or not ritobin_path.is_file() or not leaguemod_path.is_file():
+		force = True
 
 	if force and etag_path.exists():
 		etag_path.unlink(missing_ok=True)
@@ -826,14 +842,22 @@ def _iter_target_champion_files(root: Path) -> list[Path]:
 	return sorted(path for path in _iter_champion_files(root) if path.stem.lower() != "skin0")
 
 
+def _is_ranked_materials_bin(rel_posix_lower: str, file_lower: str) -> bool:
+	if "mapgeometry/map11/" not in rel_posix_lower or not file_lower.endswith(".materials.bin"):
+		return False
+	stem = file_lower[:-len(".materials.bin")]
+	return stem == "base_srx" or stem.endswith("_srs") or stem.endswith("sr_seasonal")
+
+
 def _iter_map11_master_vital_bins(root: Path) -> list[Path]:
-	all_target_chars = STRUCTURE_CHARACTERS | MINION_CHARACTERS | WARD_CHARACTERS | MAP_CHAMPION_CHARACTERS
+	all_target_chars = STRUCTURE_CHARACTERS | MONSTER_CHARACTERS | MINION_CHARACTERS | WARD_CHARACTERS | MAP_CHAMPION_CHARACTERS
 	vitals: list[Path] = []
 
 	for current, dirnames, filenames in os.walk(str(root)):
 		dirnames[:] = [d for d in dirnames if d.lower() not in {"animations", "spells", "audio", "sounds"}]
 		current_path = Path(current)
 		rel_parts = [p.lower() for p in current_path.parts]
+		rel_dir_posix = current_path.as_posix().lower()
 
 		for filename in filenames:
 			file_lower = filename.lower()
@@ -842,7 +866,7 @@ def _iter_map11_master_vital_bins(root: Path) -> list[Path]:
 
 			p = current_path / filename
 
-			if file_lower in {"base_srx.materials.bin"}:
+			if _is_ranked_materials_bin(f"{rel_dir_posix}/{file_lower}", file_lower):
 				vitals.append(p)
 				continue
 
@@ -858,7 +882,11 @@ def _iter_map11_master_vital_bins(root: Path) -> list[Path]:
 						char_name = rel_parts[idx + 1]
 
 				if char_name in EVENT_CHARACTERS:
-					if file_lower in {f"{char_name}.bin", "root.bin"} or re.fullmatch(r"skin\d+\.bin", file_lower):
+					if (
+						file_lower in {f"{char_name}.bin", "root.bin"}
+						or re.fullmatch(r"skin\d+\.bin", file_lower)
+						or file_lower.startswith(f"{char_name}_multi_skins")
+					):
 						vitals.append(p)
 					continue
 
@@ -925,6 +953,7 @@ def _is_mod_target_file(wad_name: str, rel_path: str, options: dict[str, bool] |
 			"accents": True,
 			"wards": True,
 			"structures": True,
+			"monsters": True,
 			"minions": True,
 			"finishers": True,
 			"recalls": True,
@@ -933,6 +962,7 @@ def _is_mod_target_file(wad_name: str, rel_path: str, options: dict[str, bool] |
 	opt_accents = options.get("accents", True)
 	opt_wards = options.get("wards", True)
 	opt_structures = options.get("structures", True)
+	opt_monsters = options.get("monsters", True)
 	opt_minions = options.get("minions", True)
 	opt_finishers = options.get("finishers", True)
 	opt_recalls = options.get("recalls", True)
@@ -965,7 +995,8 @@ def _is_mod_target_file(wad_name: str, rel_path: str, options: dict[str, bool] |
 		return bool(m and m.group(1) != "0")
 
 	if wad_lower == "map11.wad.client":
-		if opt_accents and any(ev in rel_lower for ev in EVENT_CHARACTERS):
+		rel_norm = rel_lower.replace("\\", "/")
+		if opt_accents and any(f"characters/{ev}/" in rel_norm for ev in EVENT_CHARACTERS):
 			return True
 
 		if "characters" in rel_lower:
@@ -975,6 +1006,13 @@ def _is_mod_target_file(wad_name: str, rel_path: str, options: dict[str, bool] |
 
 				if opt_accents and char_name in BANNER_CHARACTERS:
 					return file_name in {"skin0.bin", "root.bin"}
+
+				is_known_non_accent = (
+					char_name in (STRUCTURE_CHARACTERS | MONSTER_CHARACTERS | MINION_CHARACTERS | WARD_CHARACTERS | MAP_CHAMPION_CHARACTERS)
+					or (char_name.startswith("sru_") and "minion" in char_name)
+				)
+				if opt_accents and not is_known_non_accent:
+					return True
 
 				m_skin = re.fullmatch(r'skin(\d+)\.bin', file_name)
 				if not m_skin:
@@ -996,6 +1034,8 @@ def _is_mod_target_file(wad_name: str, rel_path: str, options: dict[str, bool] |
 				if opt_wards and char_name in WARD_CHARACTERS:
 					return True
 				if opt_structures and char_name in STRUCTURE_CHARACTERS:
+					return True
+				if opt_monsters and char_name in MONSTER_CHARACTERS:
 					return True
 				if opt_minions and (char_name in MINION_CHARACTERS or (char_name.startswith("sru_") and "minion" in char_name)):
 					return True
@@ -1019,15 +1059,584 @@ def _clean_code_line(line: str) -> str:
 		return re.sub(r'"(?:\\.|[^"\\])*"', '', line)
 	return line
 
+# ==============================================================================
+# DETERMINISTIC MAP SANITIZATION & RANKED SEASONAL CONTAINER SYNC
+# ==============================================================================
+def _fnv1a_32(text: str) -> int:
+	h = 0x811c9dc5
+	for b in text.lower().encode("utf-8"):
+		h = ((h ^ b) * 0x01000193) & 0xFFFFFFFF
+	return h
 
-# ==============================================================================
-# DETERMINISTIC MAP SANITIZATION (PRESERVING NATIVE TEXTURE PATHS)
-# ==============================================================================
+
+def _norm_rito_hash(key: str) -> int:
+	k = key.strip()
+	if len(k) >= 2 and ((k[0] == '"' and k[-1] == '"') or (k[0] == "'" and k[-1] == "'")):
+		return _fnv1a_32(k[1:-1])
+	if k.lower().startswith("0x"):
+		try:
+			return int(k, 16)
+		except ValueError:
+			pass
+	return _fnv1a_32(k)
+
+
+def _extract_top_level_entries(txt: str) -> tuple[list[str], dict[str, tuple[str, str]]]:
+	order: list[str] = []
+	entries: dict[str, tuple[str, str]] = {}
+	buf: list[str] = []
+	depth = 0
+	cap_key: str | None = None
+	cap_bt: str | None = None
+	top_pat = re.compile(r'^(?:    |\t)([^\r\n=]+?)\s*=\s*([A-Za-z0-9_]+)\s*\{')
+
+	for line in txt.splitlines(keepends=True):
+		clean = _clean_code_line(line)
+		if cap_key is None:
+			m = top_pat.match(line)
+			if m:
+				cap_key = m.group(1).strip()
+				cap_bt = m.group(2)
+				buf = [line]
+				depth = clean.count("{") - clean.count("}")
+				if depth <= 0:
+					entries[cap_key] = (cap_bt, "".join(buf))
+					order.append(cap_key)
+					cap_key = None
+		else:
+			buf.append(line)
+			depth += clean.count("{") - clean.count("}")
+			if depth <= 0:
+				entries[cap_key] = (cap_bt or "", "".join(buf))
+				order.append(cap_key)
+				cap_key = None
+
+	return order, entries
+
+
+def _extract_sub_block(block_txt: str, key: str) -> str:
+	buf: list[str] = []
+	depth = 0
+	cap = False
+	pat = re.compile(rf'^[ \t]+{re.escape(key)}\s*=')
+	for line in block_txt.splitlines(keepends=True):
+		clean = _clean_code_line(line)
+		if not cap:
+			if pat.match(line):
+				cap = True
+				buf.append(line)
+				depth = clean.count("{") - clean.count("}")
+				if depth <= 0:
+					break
+		else:
+			buf.append(line)
+			depth += clean.count("{") - clean.count("}")
+			if depth <= 0:
+				break
+	return "".join(buf)
+
+
+def _extract_map_items_keys(container_txt: str) -> dict[int, tuple[str, str]]:
+	items_map: dict[int, tuple[str, str]] = {}
+	m_hdr = re.search(r'(?:items|chunks)\s*:\s*map\[hash,\s*(?:pointer|link)\]\s*=\s*\{', container_txt)
+	if not m_hdr:
+		return items_map
+
+	lines = container_txt[m_hdr.start():].splitlines()
+	depth = 0
+	item_pat = re.compile(r'^[ \t]+("[^"]+"|0x[0-9a-fA-F]+|[^\s=]+)\s*=\s*(.+)$')
+	for idx, line in enumerate(lines):
+		clean = _clean_code_line(line)
+		if idx == 0:
+			depth = clean.count("{") - clean.count("}")
+			continue
+		if depth == 1:
+			m = item_pat.match(line)
+			if m:
+				rk = m.group(1).strip()
+				rv = m.group(2).strip()
+				items_map[_norm_rito_hash(rk)] = (rk, rv)
+		depth += clean.count("{") - clean.count("}")
+		if depth <= 0:
+			break
+	return items_map
+
+
+def _extract_item_skin_map(chunk_blk: str) -> dict[int, str]:
+	skin_map: dict[int, str] = {}
+	m_hdr = re.search(r'items:\s*map\[hash,\s*pointer\]\s*=\s*\{', chunk_blk)
+	if not m_hdr:
+		return skin_map
+	lines = chunk_blk[m_hdr.start():].splitlines()
+	depth = 0
+	item_pat = re.compile(r'^[ \t]+("[^"]+"|0x[0-9a-fA-F]+|[^\s=]+)\s*=')
+	skin_pat = re.compile(r'(?i)\bSkin:\s*string\s*=\s*"([^"]+)"')
+	curr_h: int | None = None
+	for idx, line in enumerate(lines):
+		clean = _clean_code_line(line)
+		if idx == 0:
+			depth = clean.count("{") - clean.count("}")
+			continue
+		if depth == 1:
+			m_it = item_pat.match(line)
+			if m_it:
+				curr_h = _norm_rito_hash(m_it.group(1))
+		elif depth >= 2 and curr_h is not None:
+			m_sk = skin_pat.search(line)
+			if m_sk:
+				skin_map[curr_h] = m_sk.group(1)
+		depth += clean.count("{") - clean.count("}")
+		if depth == 1:
+			curr_h = None
+		if depth <= 0:
+			break
+	return skin_map
+
+
+def _insert_after_header(block_txt: str, header_regex: str, payload: str) -> str:
+	m = re.search(header_regex, block_txt)
+	if not m or not payload.strip():
+		return block_txt
+	pos = m.end()
+	return block_txt[:pos] + "\n" + payload.rstrip("\r\n") + block_txt[pos:]
+
+
+def _remove_field_block(block_txt: str, field_name: str) -> tuple[str, int]:
+	lines = block_txt.splitlines(keepends=True)
+	out_lines: list[str] = []
+	changes = 0
+	i = 0
+	pat = re.compile(rf'^[ \t]+{re.escape(field_name)}\s*:[^=\r\n]*=\s*\{{')
+	while i < len(lines):
+		line = lines[i]
+		if pat.match(line):
+			clean = _clean_code_line(line)
+			depth = clean.count("{") - clean.count("}")
+			i += 1
+			while i < len(lines) and depth > 0:
+				cl2 = _clean_code_line(lines[i])
+				depth += cl2.count("{") - cl2.count("}")
+				i += 1
+			changes += 1
+			continue
+		out_lines.append(line)
+		i += 1
+	return "".join(out_lines), changes
+
+
+_VFX_META_STR_PAT = re.compile(r'(?i)(?:particleName|particlePath)\s*:\s*string\s*=\s*"([^"]+)"')
+
+
+def _empty_vfx_emitters(text: str, key_pattern: re.Pattern | None = None) -> tuple[str, int]:
+	lines = text.splitlines(keepends=True)
+	out_lines: list[str] = []
+	changes = 0
+	i = 0
+	top_vfx_pat = re.compile(r'^(?:    |\t)([^\r\n=]+?)\s*=\s*VfxSystemDefinitionData\s*\{')
+	emit_pat = re.compile(r'^([ \t]+)(complexEmitterDefinitionData|simpleEmitterDefinitionData)\s*:\s*list\[pointer\]\s*=\s*\{')
+
+	def _strip_emitters(blk_lines: list[str]) -> list[str]:
+		nonlocal changes
+		stripped: list[str] = [blk_lines[0]]
+		j = 1
+		while j < len(blk_lines):
+			b_line = blk_lines[j]
+			em = emit_pat.match(b_line)
+			if em:
+				ind, fld = em.group(1), em.group(2)
+				b_clean = _clean_code_line(b_line)
+				edepth = b_clean.count("{") - b_clean.count("}")
+				orig_block = [b_line]
+				j += 1
+				while j < len(blk_lines) and edepth > 0:
+					nxt = blk_lines[j]
+					orig_block.append(nxt)
+					cl2 = _clean_code_line(nxt)
+					edepth += cl2.count("{") - cl2.count("}")
+					j += 1
+				replacement = f"{ind}{fld}: list[pointer] = {{}}\n"
+				if "".join(orig_block) != replacement:
+					changes += 1
+				stripped.append(replacement)
+				continue
+			stripped.append(b_line)
+			j += 1
+		return stripped
+
+	while i < len(lines):
+		line = lines[i]
+		m = top_vfx_pat.match(line)
+		if not m:
+			out_lines.append(line)
+			i += 1
+			continue
+
+		raw_key = m.group(1).strip()
+		is_direct_match = (key_pattern is None or bool(key_pattern.search(raw_key)))
+		is_hex_key = raw_key.lower().startswith("0x")
+
+		if not is_direct_match and not is_hex_key:
+			out_lines.append(line)
+			i += 1
+			continue
+
+		clean = _clean_code_line(line)
+		vfx_depth = clean.count("{") - clean.count("}")
+		blk_lines = [line]
+		i += 1
+		while i < len(lines) and vfx_depth > 0:
+			nxt = lines[i]
+			blk_lines.append(nxt)
+			cl2 = _clean_code_line(nxt)
+			vfx_depth += cl2.count("{") - cl2.count("}")
+			i += 1
+
+		if not is_direct_match and is_hex_key:
+			blk_str = "".join(blk_lines)
+			if not any(key_pattern.search(pm.group(1)) for pm in _VFX_META_STR_PAT.finditer(blk_str)):
+				out_lines.extend(blk_lines)
+				continue
+
+		out_lines.extend(_strip_emitters(blk_lines))
+
+	return "".join(out_lines), changes
+
+
+def _chunk_has_divergent_server_entities(base_chunk_blk: str, cand_chunk_blk: str) -> bool:
+	has_ge_or_vfx = bool(re.search(r'(?:GeComponentDef|VfxEntityTemplate|MapLocator)', cand_chunk_blk))
+	if not has_ge_or_vfx:
+		return False
+	base_items = set(_extract_map_items_keys(base_chunk_blk).keys())
+	cand_items = set(_extract_map_items_keys(cand_chunk_blk).keys())
+	return bool(cand_items - base_items)
+
+
+def _normalize_synced_chunk_skins(chunk_key: str, chunk_blk: str, base_chunk_blk: str = "") -> str:
+	k_lower = chunk_key.lower()
+	if k_lower.endswith('/srs_shop"'):
+		return re.sub(r'(?i)(Skin:\s*string\s*=\s*"Characters/[^/]+/Skins/)Skin\d+"', r'\1Skin0"', chunk_blk)
+
+	if not base_chunk_blk and not k_lower.endswith('/srs_structures"'):
+		return chunk_blk
+
+	base_skins = _extract_item_skin_map(base_chunk_blk) if base_chunk_blk else {}
+	out_lines: list[str] = []
+	in_items = False
+	items_depth = 0
+	curr_h: int | None = None
+	item_buf: list[str] = []
+	items_hdr_pat = re.compile(r'items:\s*map\[hash,\s*pointer\]\s*=\s*\{')
+	item_pat = re.compile(r'^[ \t]+("[^"]+"|0x[0-9a-fA-F]+|[^\s=]+)\s*=')
+	skin_val_pat = re.compile(r'(?i)(Skin:\s*string\s*=\s*)"([^"]+)"')
+	skin_char_pat = re.compile(r'(?i)(Skin:\s*string\s*=\s*"Characters/([^/]+)/Skins/)Skin\d+"')
+
+	def _flush_item(item_hash: int, item_str: str) -> str:
+		if item_hash in base_skins:
+			canonical_skin = base_skins[item_hash]
+			return skin_val_pat.sub(lambda m, cs=canonical_skin: f'{m.group(1)}"{cs}"', item_str)
+		item_lower = item_str.lower()
+
+		def _fallback_skin(m: re.Match) -> str:
+			prefix, char_part = m.group(1), m.group(2).lower()
+			if not k_lower.endswith('/srs_structures"') and char_part not in (STRUCTURE_CHARACTERS | MINION_CHARACTERS | WARD_CHARACTERS):
+				return m.group(0)
+			if char_part in {"turret", "inhibitor", "nexus"} and "chaos" in item_lower and "order" not in item_lower:
+				return f'{prefix}Skin3"'
+			return f'{prefix}Skin0"'
+
+		return skin_char_pat.sub(_fallback_skin, item_str)
+
+	for line in chunk_blk.splitlines(keepends=True):
+		clean = _clean_code_line(line)
+		if not in_items:
+			out_lines.append(line)
+			if items_hdr_pat.search(line):
+				in_items = True
+				items_depth = clean.count("{") - clean.count("}")
+				if items_depth <= 0:
+					in_items = False
+			continue
+
+		if curr_h is None:
+			m_it = item_pat.match(line)
+			if m_it:
+				curr_h = _norm_rito_hash(m_it.group(1))
+				item_buf = [line]
+				items_depth += clean.count("{") - clean.count("}")
+				if items_depth <= 1:
+					out_lines.append(_flush_item(curr_h, "".join(item_buf)))
+					curr_h = None
+					item_buf = []
+					if items_depth <= 0:
+						in_items = False
+				continue
+			items_depth += clean.count("{") - clean.count("}")
+			out_lines.append(line)
+			if items_depth <= 0:
+				in_items = False
+			continue
+
+		item_buf.append(line)
+		items_depth += clean.count("{") - clean.count("}")
+		if items_depth <= 1:
+			out_lines.append(_flush_item(curr_h, "".join(item_buf)))
+			curr_h = None
+			item_buf = []
+			if items_depth <= 0:
+				in_items = False
+
+	if item_buf and curr_h is not None:
+		out_lines.append(_flush_item(curr_h, "".join(item_buf)))
+
+	return "".join(out_lines)
+
+
+def _discover_seasonal_characters_in_chunk(chunk_key: str, chunk_blk: str, excluded_chars: set[str]) -> set[str]:
+	k_lower = chunk_key.lower()
+	if any(s in k_lower for s in ("srs_structures", "srs_shop", "srs_jungle", "srs_dragon", "hall_of_legends")):
+		return set()
+	found: set[str] = set()
+	for m in re.finditer(r'(?i)CharacterRecord:\s*string\s*=\s*"Characters/([^"/]+)/', chunk_blk):
+		c_name = m.group(1).strip().lower()
+		if c_name and c_name not in excluded_chars and not (c_name.startswith("sru_") and "minion" in c_name):
+			found.add(c_name)
+	return found
+
+
+def _sync_ranked_seasonal_map_container(
+	wad_dir: Path,
+	dry_run: bool = False,
+) -> tuple[list[Path], set[str], set[str]]:
+	map11_txt_path = next((p for p in wad_dir.rglob("map11.bin.txt") if p.is_file()), None)
+	base_txt_path = next((p for p in wad_dir.rglob("base_srx.materials.bin.txt") if p.is_file()), None)
+	if not map11_txt_path or not base_txt_path:
+		return [], set(), set()
+
+	try:
+		m11_txt = map11_txt_path.read_text(encoding="utf-8", errors="ignore")
+		base_txt = base_txt_path.read_text(encoding="utf-8", errors="ignore")
+	except OSError:
+		return [], set(), set()
+
+	m11_ord, m11_ent = _extract_top_level_entries(m11_txt)
+	skin_info: dict[str, tuple[bool, int]] = {}
+	for k in m11_ord:
+		bt, blk = m11_ent[k]
+		if bt != "MapSkin":
+			continue
+		m_name = re.search(r'(?i)\bname:\s*string\s*=\s*"([^"]+)"', blk)
+		skin_name = (m_name.group(1) if m_name else k.strip('"').split("/")[-1]).lower()
+		if not (skin_name.endswith("_srs") or skin_name.endswith("sr_seasonal")):
+			continue
+		m_link = re.search(r'(?i)\bmMapContainerLink\s*:\s*\w+\s*=\s*"([^"]+)"', blk)
+		if not m_link:
+			continue
+		link_stem = m_link.group(1).replace("\\", "/").rstrip("/").split("/")[-1].lower()
+		has_overrides = "0x2d3285eb" in blk
+		override_count = blk.count("0x34a5a0c9")
+		prev_has, prev_cnt = skin_info.get(link_stem, (False, 0))
+		skin_info[link_stem] = (prev_has or has_overrides, max(prev_cnt, override_count))
+
+	base_ord, base_ent = _extract_top_level_entries(base_txt)
+	base_mc_key = '"Maps/MapGeometry/Map11/Base_SRX"'
+	if base_mc_key not in base_ent:
+		return [], set(), set()
+
+	base_mc_blk = base_ent[base_mc_key][1]
+	base_chunks = _extract_map_items_keys(base_mc_blk)
+	base_ent_by_h = {_norm_rito_hash(k): (k, bt, blk) for k, (bt, blk) in base_ent.items()}
+	base_srx_chars = {m.group(1).strip().lower() for m in re.finditer(r'(?i)"Characters/([^"/]+)/', base_txt)}
+	excluded_auto_chars = (
+		STRUCTURE_CHARACTERS
+		| MONSTER_CHARACTERS
+		| MINION_CHARACTERS
+		| WARD_CHARACTERS
+		| MAP_CHAMPION_CHARACTERS
+		| BANNER_CHARACTERS
+		| EVENT_CHARACTERS
+		| base_srx_chars
+	)
+	best_score: tuple[int, int, int, int] = (0, 0, 0, 0)
+	best_cand: tuple[Path, list[str], dict[str, tuple[str, str]], dict[int, tuple[str, str, str]], dict[int, tuple[str, str]]] | None = None
+
+	for cand_path in sorted(wad_dir.rglob("*.materials.bin.txt")):
+		if cand_path == base_txt_path:
+			continue
+		stem = cand_path.name[:-len(".materials.bin.txt")].lower()
+		if stem == "base_srx" or not (stem.endswith("_srs") or stem.endswith("sr_seasonal")):
+			continue
+		if skin_info and stem not in skin_info:
+			continue
+		try:
+			cand_txt = cand_path.read_text(encoding="utf-8", errors="ignore")
+		except OSError:
+			continue
+
+		cand_ord, cand_ent = _extract_top_level_entries(cand_txt)
+		cand_mc_key = next((k for k in cand_ord if cand_ent[k][0] == "MapContainer"), None)
+		if not cand_mc_key:
+			continue
+		cand_ent_by_h = {_norm_rito_hash(k): (k, bt, blk) for k, (bt, blk) in cand_ent.items()}
+		cand_chunks = _extract_map_items_keys(cand_ent[cand_mc_key][1])
+
+		extra_chunk_keys = sum(1 for h in cand_chunks if h not in base_chunks)
+		divergent_shared = 0
+		for h, (_, clink) in cand_chunks.items():
+			if h in base_chunks:
+				b_entry = base_ent_by_h.get(_norm_rito_hash(base_chunks[h][1]))
+				c_entry = cand_ent_by_h.get(_norm_rito_hash(clink))
+				if b_entry and c_entry and _chunk_has_divergent_server_entities(b_entry[2], c_entry[2]):
+					divergent_shared += 1
+
+		if extra_chunk_keys == 0 and divergent_shared == 0:
+			continue
+
+		has_ovr, ovr_cnt = skin_info.get(stem, (False, 0))
+		score = (1 if has_ovr else 0, ovr_cnt, extra_chunk_keys + divergent_shared, len(cand_txt))
+		if score > best_score:
+			best_score = score
+			best_cand = (cand_path, cand_ord, cand_ent, cand_ent_by_h, cand_chunks)
+
+	if best_cand is None:
+		return [], set(), set()
+
+	cand_path, cand_ord, cand_ent, cand_ent_by_h, cand_chunks = best_cand
+	LOG.info("Syncing Ranked Map11 structural anchors from %s into Base_SRX", cand_path.name)
+
+	active_themes: set[str] = set()
+	cand_stem = cand_path.name[:-len(".materials.bin.txt")].lower()
+	t = ""
+	if cand_stem.endswith("_srs"):
+		t = cand_stem[:-4]
+	elif cand_stem.endswith("_sr_seasonal"):
+		t = cand_stem[:-12]
+	elif cand_stem.endswith("sr_seasonal"):
+		t = cand_stem[:-11]
+	if len(t) >= 3 and t not in {"default", "base", "srx", "srs"}:
+		active_themes.add(t)
+
+	chunks_to_copy_hashes: set[int] = set()
+	chunk_replacements: dict[int, str] = {}
+	chunk_base_map: dict[int, str] = {}
+	extra_chunk_lines: list[str] = []
+	audio_blocks_to_inject: list[str] = []
+
+	for h, (ckey, clink) in cand_chunks.items():
+		ckey_clean = ckey.strip('"').lower()
+		clink_clean = clink.strip('"').lower()
+
+		if ckey_clean == "sru_audio" or clink_clean.endswith("/sru_audio"):
+			if h in base_chunks:
+				b_entry = base_ent_by_h.get(_norm_rito_hash(base_chunks[h][1]))
+				c_entry = cand_ent_by_h.get(_norm_rito_hash(clink))
+				if b_entry and c_entry:
+					b_audio_blk = b_entry[2]
+					c_audio_blk = c_entry[2]
+					b_audio_items = _extract_map_items_keys(b_audio_blk)
+					c_audio_items = _extract_map_items_keys(c_audio_blk)
+					for ah, (ak, _) in c_audio_items.items():
+						if ah not in b_audio_items:
+							sub_blk = _extract_sub_block(c_audio_blk, ak)
+							if "MapAudio" in sub_blk:
+								audio_blocks_to_inject.append(sub_blk.rstrip("\r\n"))
+			continue
+
+		if h in base_chunks:
+			b_entry = base_ent_by_h.get(_norm_rito_hash(base_chunks[h][1]))
+			c_entry = cand_ent_by_h.get(_norm_rito_hash(clink))
+			if b_entry and c_entry and _chunk_has_divergent_server_entities(b_entry[2], c_entry[2]):
+				chunk_replacements[h] = clink
+				clink_h = _norm_rito_hash(clink)
+				chunk_base_map[clink_h] = b_entry[2]
+				chunks_to_copy_hashes.add(clink_h)
+			continue
+
+		if ckey_clean == "srx_particles":
+			particles_hash = _fnv1a_32("Particles")
+			if particles_hash in base_chunks:
+				extra_chunk_lines.append(f'            {ckey} = "Maps/MapGeometry/Map11/Chunks/SRX_Particles"')
+				continue
+
+		if clink_clean.endswith("/srs_shop"):
+			shop_hash = _fnv1a_32("SRS_Shop")
+			if shop_hash in base_chunks:
+				chunk_replacements[shop_hash] = clink
+			extra_chunk_lines.append(f'            {ckey} = {clink}')
+			chunks_to_copy_hashes.add(_norm_rito_hash(clink))
+			continue
+
+		extra_chunk_lines.append(f'            {ckey} = {clink}')
+		chunks_to_copy_hashes.add(_norm_rito_hash(clink))
+
+	discovered_chars: set[str] = set()
+	extra_top_blocks: list[str] = []
+
+	for k in cand_ord:
+		bt, blk = cand_ent[k]
+		kh = _norm_rito_hash(k)
+		if kh in base_ent_by_h:
+			continue
+		if bt == "MapContainer":
+			continue
+		if bt == "MapPlaceableContainer":
+			if kh not in chunks_to_copy_hashes:
+				continue
+			blk = _normalize_synced_chunk_skins(k, blk, base_chunk_blk=chunk_base_map.get(kh, ""))
+			discovered_chars.update(_discover_seasonal_characters_in_chunk(k, blk, excluded_auto_chars))
+		elif bt == "VfxSystemDefinitionData":
+			blk, _ = _empty_vfx_emitters(blk, None)
+		extra_top_blocks.append(blk.rstrip("\r\n"))
+
+	updated_base_txt = base_txt
+
+	if audio_blocks_to_inject:
+		audio_hash = _fnv1a_32("SRU_Audio")
+		if audio_hash in base_chunks:
+			b_audio_entry = base_ent_by_h.get(_norm_rito_hash(base_chunks[audio_hash][1]))
+			if b_audio_entry:
+				b_audio_orig = b_audio_entry[2]
+				b_audio_new = _insert_after_header(
+					b_audio_orig,
+					r'items:\s*map\[hash,\s*pointer\]\s*=\s*\{',
+					"\n".join(audio_blocks_to_inject),
+				)
+				updated_base_txt = updated_base_txt.replace(b_audio_orig, b_audio_new, 1)
+
+	new_mc = base_mc_blk
+	for rep_h, new_link in chunk_replacements.items():
+		if rep_h in base_chunks:
+			old_key, old_link = base_chunks[rep_h]
+			new_mc = re.sub(
+				rf'({re.escape(old_key)}\s*=\s*){re.escape(old_link)}',
+				lambda m, nl=new_link: m.group(1) + nl,
+				new_mc,
+				count=1,
+			)
+	if extra_chunk_lines:
+		new_mc = _insert_after_header(new_mc, r'chunks:\s*map\[hash,\s*link\]\s*=\s*\{', "\n".join(extra_chunk_lines))
+
+	inject_prefix = ("\n".join(extra_top_blocks) + "\n") if extra_top_blocks else ""
+	updated_base_txt = updated_base_txt.replace(base_mc_blk, inject_prefix + new_mc, 1)
+
+	if updated_base_txt != base_txt:
+		if not dry_run:
+			base_txt_path.write_text(updated_base_txt, encoding="utf-8")
+		return [base_txt_path], discovered_chars, active_themes
+	return [], discovered_chars, active_themes
+
+
 def _extract_diffuse_texture(block_text: str) -> str:
 	m = re.search(r'(?i)\btexturePath:\s*file\s*=\s*"([^"]+)"', block_text)
 	if not m:
-		raise ValueError(f"Corrupted or invalid StaticMaterialDef block: missing texturePath!\n{block_text[:200]}")
+		return MAP11_TRANSPARENT_TEX_REL
 	return m.group(1)
+
+
+def _format_rito_key(key: str) -> str:
+	k = key.strip()
+	if re.fullmatch(r"0x[0-9a-fA-F]+", k):
+		return k
+	return f'"{k}"'
 
 
 def _make_neutralized_material(key: str, block_text: str, native_texture_path: str) -> str:
@@ -1035,9 +1644,10 @@ def _make_neutralized_material(key: str, block_text: str, native_texture_path: s
 	if not m_name:
 		m_name = re.search(r'(?i)^\s*(name:\s*[^\r\n]+)', block_text, re.MULTILINE)
 	name_line = m_name.group(1).strip() if m_name else 'name: string = "Neutralized"'
+	key_tok = _format_rito_key(key)
 
 	return (
-		f'    "{key}" = StaticMaterialDef {{\n'
+		f'    {key_tok} = StaticMaterialDef {{\n'
 		f'        {name_line}\n'
 		f'        type: u8 = 0\n'
 		f'        samplerValues: list2[embed] = {{\n'
@@ -1076,8 +1686,9 @@ def _make_neutralized_material(key: str, block_text: str, native_texture_path: s
 
 def _make_empty_vfx(key: str) -> str:
 	if key:
+		key_tok = _format_rito_key(key)
 		return (
-			f'    "{key}" = VfxSystemDefinitionData {{\n'
+			f'    {key_tok} = VfxSystemDefinitionData {{\n'
 			f'        complexEmitterDefinitionData: list[pointer] = {{}}\n'
 			f'        simpleEmitterDefinitionData: list[pointer] = {{}}\n'
 			f'    }}\n'
@@ -1108,36 +1719,162 @@ def _sanitize_event_npc_text(text: str) -> tuple[str, int]:
 	return out_text, changes
 
 
-def _sanitize_text_content(text: str, filename: str) -> tuple[str, int]:
+def _hide_event_character_text(text: str) -> tuple[str, int]:
+	out_text, changes = _empty_vfx_emitters(text, key_pattern=None)
+	lines = out_text.splitlines(keepends=True)
+	out_lines: list[str] = []
+	i = 0
+
+	while i < len(lines):
+		line = lines[i]
+		clean = _clean_code_line(line)
+
+		if re.search(r'\bSkinMeshDataProperties\s*\{', clean):
+			depth = clean.count("{") - clean.count("}")
+			block = [line]
+			i += 1
+			while i < len(lines) and depth > 0:
+				nxt = lines[i]
+				block.append(nxt)
+				cl2 = _clean_code_line(nxt)
+				depth += cl2.count("{") - cl2.count("}")
+				i += 1
+			blk_str = "".join(block)
+			new_blk, c1 = re.subn(r'(?i)(\btexture:\s*file\s*=\s*)"[^"]+"', rf'\1"{MAP11_TRANSPARENT_TEX_REL}"', blk_str)
+			new_blk, c2 = re.subn(r'(?i)(\bselfIllumination:\s*f32\s*=\s*)[0-9.eE+-]+', r'\g<1>0.0', new_blk)
+			if re.search(r'(?i)\bskinScale:\s*f32\s*=', new_blk):
+				new_blk, c3 = re.subn(r'(?i)(\bskinScale:\s*f32\s*=\s*)[0-9.eE+-]+', r'\g<1>0.0001', new_blk)
+			else:
+				m_ind = re.match(r'^([ \t]+)', line)
+				ind = (m_ind.group(1) if m_ind else "\t\t") + "\t"
+				new_blk = re.sub(r'(SkinMeshDataProperties\s*\{)', rf'\1\n{ind}skinScale: f32 = 0.0001', new_blk, count=1)
+				c3 = 1
+			if new_blk != blk_str:
+				changes += (c1 + c2 + c3)
+			out_lines.append(new_blk)
+			continue
+
+		if re.match(r'^[ \t]+idleParticlesEffects\s*:[^=\r\n]*=\s*\{', line):
+			depth = clean.count("{") - clean.count("}")
+			ind = re.match(r'^([ \t]+)', line).group(1)
+			orig_idle = [line]
+			i += 1
+			while i < len(lines) and depth > 0:
+				nxt = lines[i]
+				orig_idle.append(nxt)
+				cl2 = _clean_code_line(nxt)
+				depth += cl2.count("{") - cl2.count("}")
+				i += 1
+			repl = f"{ind}idleParticlesEffects: list[embed] = {{}}\n"
+			if "".join(orig_idle) != repl:
+				changes += 1
+			out_lines.append(repl)
+			continue
+
+		out_lines.append(line)
+		i += 1
+
+	out_text = "".join(out_lines)
+	out_text, c_ev = _sanitize_event_npc_text(out_text)
+	return out_text, changes + c_ev
+
+
+def _sanitize_map11_bin_text(text: str, active_themes: set[str] | None = None) -> tuple[str, int]:
+	changes = 0
+	lines = text.splitlines(keepends=True)
+	out_lines: list[str] = []
+	i = 0
+	mapskin_pat = re.compile(r'^(?:    |\t)([^\r\n=]+?)\s*=\s*MapSkin\s*\{')
+
+	while i < len(lines):
+		line = lines[i]
+		m = mapskin_pat.match(line)
+		if not m:
+			out_lines.append(line)
+			i += 1
+			continue
+
+		key = m.group(1).strip()
+		clean = _clean_code_line(line)
+		depth = clean.count("{") - clean.count("}")
+		block_lines = [line]
+		i += 1
+		while i < len(lines) and depth > 0:
+			nxt = lines[i]
+			block_lines.append(nxt)
+			cl2 = _clean_code_line(nxt)
+			depth += cl2.count("{") - cl2.count("}")
+			i += 1
+
+		block_text = "".join(block_lines)
+		m_name = re.search(r'(?i)\bname:\s*string\s*=\s*"([^"]+)"', block_text)
+		skin_name = (m_name.group(1) if m_name else key.strip('"').split("/")[-1]).lower()
+
+		is_ranked_classic = (
+			skin_name == "default"
+			or skin_name.endswith("_srs")
+			or "_srs_" in skin_name
+			or skin_name.endswith("sr_seasonal")
+		)
+		if not is_ranked_classic:
+			out_lines.append(block_text)
+			continue
+
+		new_block = block_text
+		new_block, c_geo = re.subn(
+			r'(?i)(\bmMapContainerLink\s*:\s*\w+\s*=\s*)"[^"]+"',
+			r'\g<1>"Maps/MapGeometry/Map11/Base_SRX"',
+			new_block,
+		)
+		new_block, c_cfg = re.subn(
+			r'(?i)(\bmMapObjectsCFG\s*:\s*\w+\s*=\s*)"[^"]*"',
+			r'\g<1>"ASSETS/Maps/Deprecated/Map11/CFG/objectcfg_SRX.cfg"',
+			new_block,
+		)
+		new_block, c_ini = re.subn(
+			r'(?i)(\bmWorldParticlesINI\s*:\s*\w+\s*=\s*)"[^"]*"',
+			r'\g<1>"ASSETS/Maps/Particles/Deprecated/Map11/Particles_SRX.ini"',
+			new_block,
+		)
+		new_block, c_grass = re.subn(
+			r'(?i)(\bmGrassTintTexture\s*:\s*file\s*=\s*)"[^"]+"',
+			r'\g<1>"assets/maps/info/map11/grasstint_srx.tex"',
+			new_block,
+		)
+		new_block, c_res = re.subn(
+			r'(?i)(\bmResourceResolvers\s*:\s*list\[link\]\s*=\s*\{)[^}]*\}',
+			r'\g<1> "Maps/Shipping/Map11/MapSkins/Default/Resources" }',
+			new_block,
+		)
+		new_block, c_ovr = _remove_field_block(new_block, "0x2d3285eb")
+		changes += (c_geo + c_cfg + c_ini + c_grass + c_res + c_ovr)
+		out_lines.append(new_block)
+
+	out_text = "".join(out_lines)
+	theme_parts = ["milkshake", "snowdown", *(p.pattern for p in _ACCENT_OMISSION_PATTERNS)]
+	for t in sorted(active_themes or ()):
+		if t not in {"milkshake", "snowdown"}:
+			esc = re.escape(t)
+			theme_parts.append(rf"(?:(?<![a-z0-9]){esc}(?![a-z0-9])|/{esc}/|srs_{esc}|{esc}_)")
+	vfx_pat = re.compile(rf'(?:{"|".join(theme_parts)})', re.IGNORECASE)
+	out_text, c_vfx = _empty_vfx_emitters(out_text, key_pattern=vfx_pat)
+	return out_text, changes + c_vfx
+
+
+def _sanitize_text_content(text: str, filename: str, active_themes: set[str] | None = None) -> tuple[str, int]:
 	changes = 0
 	out_text = text
 	fn_lower = filename.replace("\\", "/").lower()
 
 	if "map11.bin" in fn_lower:
-		out_text, c_geo = re.subn(
-			r'(?i)(\bmMapContainerLink\s*:\s*\w+\s*=\s*)"[^"]+"',
-			r'\g<1>"Maps/MapGeometry/Map11/Base_SRX"',
-			out_text
-		)
-		out_text, c_cfg = re.subn(
-			r'(?i)(\bmMapObjectsCFG\s*:\s*\w+\s*=\s*)"[^"]*"',
-			r'\g<1>"ASSETS/Maps/Deprecated/Map11/CFG/objectcfg_SRX.cfg"',
-			out_text
-		)
-		out_text, c_ini = re.subn(
-			r'(?i)(\bmWorldParticlesINI\s*:\s*\w+\s*=\s*)"[^"]*"',
-			r'\g<1>"ASSETS/Maps/Particles/Deprecated/Map11/Particles_SRX.ini"',
-			out_text
-		)
-		out_text, c_res = re.subn(
-			r'(?i)(\bmResourceResolvers\s*:\s*list\[link\]\s*=\s*\{)[^}]*\}',
-			r'\g<1> "Maps/Shipping/Map11/MapSkins/Default/Resources" }',
-			out_text
-		)
-		changes += (c_geo + c_cfg + c_ini + c_res)
+		out_text, c_m11 = _sanitize_map11_bin_text(out_text, active_themes=active_themes)
+		return out_text, c_m11
 
-	for pattern, replacer in _SRS_TO_CANONICAL_TEX_RULES:
-		out_text, c_sub = pattern.subn(replacer, out_text)
+	for _, tex_pattern, target_canonical in _SRS_TO_CANONICAL_TEX_RULES:
+		out_text, c_sub = tex_pattern.subn(
+			lambda m, tgt=target_canonical: f'{m.group(1)}{tgt}{m.group(1)}',
+			out_text,
+		)
 		changes += c_sub
 
 	lines = out_text.splitlines(keepends=True)
@@ -1189,34 +1926,105 @@ def _sanitize_text_content(text: str, filename: str) -> tuple[str, int]:
 			changes += 1
 			continue
 
+		if type_lower == "staticmaterialdef":
+			for key_pattern, _, target_canonical in _SRS_TO_CANONICAL_TEX_RULES:
+				if key_pattern.search(key):
+					replaced = False
+
+					def _replace_diffuse_sampler(sm: re.Match) -> str:
+						nonlocal replaced
+						blk = sm.group(0)
+						if re.search(r'(?i)TextureName:\s*string\s*=\s*"DiffuseTexture"', blk):
+							new_blk, n = re.subn(
+								r'(?i)(texturePath:\s*file\s*=\s*)[^\r\n]+',
+								lambda tm, tgt=target_canonical: f'{tm.group(1)}"{tgt}"',
+								blk,
+								count=1,
+							)
+							if n > 0:
+								replaced = True
+								return new_blk
+						return blk
+
+					new_block = _SAMPLER_DEF_PAT.sub(_replace_diffuse_sampler, block_text)
+					if not replaced and target_canonical.lower() not in block_text.lower():
+						def _replace_first_sampler(sm: re.Match) -> str:
+							nonlocal replaced
+							if replaced:
+								return sm.group(0)
+							new_blk, n = re.subn(
+								r'(?i)(texturePath:\s*file\s*=\s*)[^\r\n]+',
+								lambda tm, tgt=target_canonical: f'{tm.group(1)}"{tgt}"',
+								sm.group(0),
+								count=1,
+							)
+							if n > 0:
+								replaced = True
+								return new_blk
+							return sm.group(0)
+
+						new_block = _SAMPLER_DEF_PAT.sub(_replace_first_sampler, block_text)
+						if not replaced:
+							new_block, _ = re.subn(
+								r'(?i)(texturePath:\s*file\s*=\s*)[^\r\n]+',
+								lambda tm, tgt=target_canonical: f'{tm.group(1)}"{tgt}"',
+								new_block,
+								count=1,
+							)
+
+					if new_block != block_text:
+						block_text = new_block
+						changes += 1
+					break
+
 		out_lines.append(block_text)
 
-	out_text = "".join(out_lines)
-
-	if any(ev in fn_lower for ev in EVENT_CHARACTERS):
-		out_text, c_ev = _sanitize_event_npc_text(out_text)
-		changes += c_ev
-
-	return out_text, changes
+	return "".join(out_lines), changes
 
 
 def clean_map_elements(
 	wad_dir: Path,
 	dry_run: bool = False,
 	progress_callback: Callable[[int, int, str], None] | None = None,
+	tools: dict | None = None,
 ) -> list[Path]:
 	modified_files: list[Path] = []
+	synced_files, discovered_chars, active_themes = _sync_ranked_seasonal_map_container(wad_dir, dry_run=dry_run)
+
+	if discovered_chars and tools and not dry_run:
+		new_hidden = discovered_chars - EVENT_CHARACTERS
+		if new_hidden:
+			def _disc_selector(src_d: Path) -> list[Path]:
+				found_bins: list[Path] = []
+				for p in src_d.rglob("*.bin"):
+					parts = [pt.lower() for pt in p.parts]
+					if "characters" in parts:
+						idx = parts.index("characters")
+						if len(parts) > idx + 1 and parts[idx + 1] in new_hidden:
+							if not p.with_name(p.name + ".txt").is_file():
+								found_bins.append(p)
+				return sorted(found_bins)
+			decompile_bin_files(wad_dir, tools, dry_run=dry_run, file_selector=_disc_selector, parallel=True)
+
+	all_accents_chars = EVENT_CHARACTERS | discovered_chars
+
 	all_txt = find_files_by_extensions(wad_dir, ".txt")
 	target_files: list[Path] = []
 	for f in all_txt:
 		rel_posix = f.relative_to(wad_dir).as_posix().lower()
-		if "characters" in rel_posix and not any(ev in rel_posix for ev in EVENT_CHARACTERS):
+		if rel_posix.endswith(".materials.bin.txt") and not rel_posix.endswith("/base_srx.materials.bin.txt"):
 			continue
+		if "characters" in rel_posix:
+			parts = rel_posix.split("/")
+			idx = parts.index("characters")
+			char_name = parts[idx + 1] if len(parts) > idx + 1 else ""
+			if char_name not in all_accents_chars:
+				continue
 		target_files.append(f)
 
 	total = len(target_files)
 	if total == 0:
-		return modified_files
+		return synced_files
 
 	for index, txt_file in enumerate(target_files, start=1):
 		if progress_callback:
@@ -1228,13 +2036,26 @@ def clean_map_elements(
 		except Exception:
 			continue
 
-		cleaned, n_changes = _sanitize_text_content(text, rel_posix)
+		is_event_char = False
+		if "characters" in rel_posix:
+			parts = rel_posix.split("/")
+			idx = parts.index("characters")
+			if len(parts) > idx + 1 and parts[idx + 1] in all_accents_chars:
+				is_event_char = True
+
+		if is_event_char:
+			cleaned, n_changes = _hide_event_character_text(text)
+		else:
+			cleaned, n_changes = _sanitize_text_content(text, rel_posix, active_themes=active_themes)
+
 		if cleaned != text and n_changes > 0:
 			if not dry_run:
 				txt_file.parent.mkdir(parents=True, exist_ok=True)
 				txt_file.write_text(cleaned, encoding="utf-8")
 			modified_files.append(txt_file)
 			LOG.info("Sanitized (%d changes): %s", n_changes, rel_posix)
+		elif txt_file in synced_files and txt_file not in modified_files:
+			modified_files.append(txt_file)
 
 	return modified_files
 
@@ -1622,8 +2443,10 @@ def fast_vanilla_revert(
 	base_text: str,
 	target_skin: str,
 	skin_numeric_id: str | None,
+	char_name: str | None = None,
+	source_skin: str = "Skin0",
 ) -> str:
-	text = re.sub(
+	text, n_skin = re.subn(
 		r'(?i)(["\'](?:Characters[/\\])?[^"\'/\\]+[/\\]Skins[/\\])Skin\d+(["\']\s*=\s*SkinCharacterDataProperties)',
 		rf'\g<1>{target_skin}\g<2>',
 		base_text,
@@ -1648,7 +2471,43 @@ def fast_vanilla_revert(
 			text,
 			count=1,
 		)
-		
+
+	if char_name and (n_skin == 0 or n_res_defs == 0):
+		src_base = f"characters/{char_name}/skins/{source_skin}".lower()
+		tgt_base = f"characters/{char_name}/skins/{target_skin}".lower()
+		h_src_skin = f"0x{_fnv1a_32(src_base):08x}"
+		h_tgt_skin = f"0x{_fnv1a_32(tgt_base):08x}"
+		h_src_res = f"0x{_fnv1a_32(src_base + '/resources'):08x}"
+		h_tgt_res = f"0x{_fnv1a_32(tgt_base + '/resources'):08x}"
+
+		if n_skin == 0:
+			text = re.sub(
+				rf'(?im)^([ \t]*){re.escape(h_src_skin)}(\s*=\s*SkinCharacterDataProperties\b)',
+				rf'\g<1>{h_tgt_skin}\g<2>',
+				text,
+				count=1,
+			)
+			text = re.sub(
+				rf'(?i)(objectPath:\s*hash(?:\[[^\]]+\])?\s*=\s*){re.escape(h_src_skin)}\b',
+				rf'\g<1>{h_tgt_skin}',
+				text,
+				count=1,
+			)
+		if n_res_defs == 0:
+			text, n_hex_res = re.subn(
+				rf'(?im)^([ \t]*){re.escape(h_src_res)}(\s*=\s*ResourceResolver\b)',
+				rf'\g<1>{h_tgt_res}\g<2>',
+				text,
+				count=1,
+			)
+			if n_hex_res > 0:
+				text = re.sub(
+					rf'(?i)(:\s*link\s*=\s*){re.escape(h_src_res)}\b',
+					rf'\g<1>{h_tgt_res}',
+					text,
+					count=1,
+				)
+
 	if skin_numeric_id and skin_numeric_id.isdigit():
 		text = re.sub(r'(?i)(\b(?:m_?)?skinId\s*:\s*(?:u32|int|u16)\s*=\s*)\d+', rf'\g<1>{skin_numeric_id}', text, count=1)
 		text = re.sub(r'(?i)(\bchampionSkinId\s*:\s*i32\s*=\s*)\d+', rf'\g<1>{skin_numeric_id}', text, count=1)
@@ -1778,6 +2637,7 @@ def force_vanilla_existing_skins(
 			base_text,
 			target_skin,
 			skin_numeric_id,
+			char_name=c_name,
 		)
 
 		if not dry_run:
@@ -1844,7 +2704,7 @@ def process_map11_master_characters(
 	rubble_tasks: list[tuple[str, Path, str, str]] = []
 	minion_tasks: list[tuple[str, Path, str, str]] = []
 
-	all_standard_chars = STRUCTURE_CHARACTERS | MINION_CHARACTERS | MAP_CHAMPION_CHARACTERS
+	all_standard_chars = STRUCTURE_CHARACTERS | MONSTER_CHARACTERS | MINION_CHARACTERS | MAP_CHAMPION_CHARACTERS
 
 	for char_name in sorted(all_standard_chars):
 		skins_dir = char_skins_dirs.get(char_name)
@@ -1987,7 +2847,7 @@ def process_map11_master_characters(
 		except OSError:
 			continue
 		target_skin = f"Skin{skin_id}"
-		text = fast_vanilla_revert(base_text, target_skin, skin_numeric_id=skin_id)
+		text = fast_vanilla_revert(base_text, target_skin, skin_numeric_id=skin_id, char_name=char_name, source_skin=f"Skin{target_base_id}")
 		out_file = skins_dir / f"skin{skin_id}.bin.txt"
 		if not dry_run:
 			out_file.write_text(text, encoding="utf-8")
@@ -2003,7 +2863,7 @@ def process_map11_master_characters(
 		except OSError:
 			continue
 		target_skin = f"Skin{skin_id}"
-		text = fast_vanilla_revert(base_text, target_skin, skin_numeric_id=skin_id)
+		text = fast_vanilla_revert(base_text, target_skin, skin_numeric_id=skin_id, char_name=char_name, source_skin=f"Skin{target_base_id}")
 		out_file = skins_dir / f"skin{skin_id}.bin.txt"
 		if not dry_run:
 			out_file.write_text(text, encoding="utf-8")
@@ -2019,7 +2879,7 @@ def process_map11_master_characters(
 		except OSError:
 			continue
 		target_skin = f"Skin{skin_id}"
-		text = fast_vanilla_revert(base_text, target_skin, skin_numeric_id=skin_id)
+		text = fast_vanilla_revert(base_text, target_skin, skin_numeric_id=skin_id, char_name=char_name, source_skin=f"Skin{target_base_id}")
 		out_file = skins_dir / f"skin{skin_id}.bin.txt"
 		if not dry_run:
 			out_file.write_text(text, encoding="utf-8")
@@ -2035,7 +2895,7 @@ def process_map11_master_characters(
 		except OSError:
 			continue
 		target_skin = f"Skin{skin_id}"
-		text = fast_vanilla_revert(base_text, target_skin, skin_numeric_id=skin_id)
+		text = fast_vanilla_revert(base_text, target_skin, skin_numeric_id=skin_id, char_name=char_name)
 		out_file = skins_dir / f"skin{skin_id}.bin.txt"
 		if not dry_run:
 			out_file.write_text(text, encoding="utf-8")
@@ -2061,7 +2921,7 @@ def process_map11_master_characters(
 			for skin_id in valid_ward_skin_ids:
 				curr_op += 1
 				target_skin = f"Skin{skin_id}"
-				text = fast_vanilla_revert(sightward_base_txt, target_skin, skin_numeric_id=None)
+				text = fast_vanilla_revert(sightward_base_txt, target_skin, skin_numeric_id=None, char_name="sightward")
 				out_file = sightward_skins_dir / f"skin{skin_id}.bin.txt"
 				if not dry_run:
 					out_file.write_text(text, encoding="utf-8")
@@ -2213,7 +3073,12 @@ def _process_one_champion_wad_job(args: tuple[Path, dict, Path, bool, object]) -
 
 			if submesh_alias_tasks:
 				for ent_name, skin_sfx, old_sub, new_sub in submesh_alias_tasks:
-					base_skn_list = [p for p in temp_dir.rglob("*.skn") if "base" in p.as_posix().lower()]
+					base_skn_list = [
+						p for p in temp_dir.rglob("*.skn")
+						if f"characters/{ent_name}/" in p.as_posix().lower() and "base" in p.as_posix().lower()
+					]
+					if not base_skn_list:
+						base_skn_list = [p for p in temp_dir.rglob("*.skn") if "base" in p.as_posix().lower()]
 					if not base_skn_list:
 						base_skn_list = list(temp_dir.rglob(f"{ent_name}.skn")) + list(temp_dir.rglob(f"{ent_name.capitalize()}.skn"))
 
@@ -2306,6 +3171,38 @@ def process_champion_wads(
 
 	return [outputs[wad_path.name.lower()] for wad_path in champion_wads]
 
+def _get_mod_docs() -> tuple[str, str]:
+	readme_md = f"""### 📖 Overview
+A surgical, zero-bloat restoration mod that brings League of Legends back to its canonical **Vanilla** state using strictly native engine declarations and memory graphs.
+
+---
+
+### 🌟 Acknowledgements & Dedications
+This project stands on the shoulders of the true pioneers of the League of Legends reverse engineering and modding community:
+
+* **[moonshadow565](https://github.com/moonshadow565)** — Creator of **`ritobin`** and **`lolpytools`**.
+* **[Crauzer](https://github.com/Crauzer)** — Head of **`LeagueToolkit`**, **`cslol-manager`**, and WAD toolchains.
+* **[CommunityDragon](https://github.com/CommunityDragon)** — For continuous maintenance of game hash tables.
+
+---
+
+Compiled and packaged via **[Vanilla True Builder](https://github.com/gsmeven/vanilla-true-builder)** by **[Neve](https://github.com/gsmeven)**.
+"""
+	license_text = """Copyright (C) 2026 Neve — Vanilla True Builder
+
+Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
+Full Terms: https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+Permissions & Conditions:
+• Attribution (BY): Credit the author (Neve) and link to the upstream repository.
+• Non-Commercial (NC): Commercial use, monetization, paywalls, or resale are strictly prohibited.
+• Share-Alike (SA): Any modifications, updates, or derivative builds must inherit this exact license.
+
+Disclaimer:
+Provided "AS IS", without warranties of any kind. Unofficial community project;
+League of Legends and all related game assets belong to Riot Games, Inc.
+"""
+	return readme_md, license_text
 
 # ==============================================================================
 # LEGACY STANDALONE .FANTOME PACKAGING (DIRECT FLAT WAD HARVESTING)
@@ -2329,6 +3226,7 @@ def create_standalone_fantome(
 	opt_labels = {
 		"champions": "Champions",
 		"structures": "Structures",
+		"monsters": "Epic Monsters",
 		"minions": "Minions",
 		"wards": "Wards",
 		"accents": "Map Accents",
@@ -2349,37 +3247,7 @@ def create_standalone_fantome(
 	}
 	info_json_bytes = json.dumps(metadata, indent=2, ensure_ascii=False).encode("utf-8")
 
-	readme_md = f"""### 📖 Overview
-A surgical, zero-bloat restoration mod that brings League of Legends back to its canonical **Vanilla** state using strictly native engine declarations and memory graphs.
-
----
-
-### 🌟 Acknowledgements & Dedications
-This project stands on the shoulders of the true pioneers of the League of Legends reverse engineering and modding community:
-
-* **[moonshadow565](https://github.com/moonshadow565)** — Creator of **`ritobin`** and **`lolpytools`**.
-* **[Crauzer](https://github.com/Crauzer)** — Head of **`LeagueToolkit`**, **`cslol-manager`**, and WAD toolchains.
-* **[CommunityDragon](https://github.com/CommunityDragon)** — For continuous maintenance of game hash tables.
-
----
-
-Compiled and packaged via **[Vanilla True Builder](https://github.com/gsmeven/vanilla-true-builder)** by **[Neve](https://github.com/gsmeven)**.
-"""
-
-	license_text = """Copyright (C) 2026 Neve — Vanilla True Builder
-	
-Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
-Full Terms: https://creativecommons.org/licenses/by-nc-sa/4.0/
-	
-Permissions & Conditions:
-• Attribution (BY): Credit the author (Neve) and link to the upstream repository.
-• Non-Commercial (NC): Commercial use, monetization, paywalls, or resale are strictly prohibited.
-• Share-Alike (SA): Any modifications, updates, or derivative builds must inherit this exact license.
-	
-Disclaimer:
-Provided "AS IS", without warranties of any kind. Unofficial community project;
-League of Legends and all related game assets belong to Riot Games, Inc.
-"""
+	readme_md, license_text = _get_mod_docs()
 
 	archive_entries: list[tuple[Path, str]] = []
 	seen_targets: set[str] = set()
@@ -2456,25 +3324,8 @@ League of Legends and all related game assets belong to Riot Games, Inc.
 	return fantome_path
 
 
-def _resolve_entity_to_champion_wad(entity: str, champion_wads: list[Path]) -> Path | None:
-	ent_lower = entity.lower()
-	for wad in champion_wads:
-		c_name = wad.name.split(".")[0].lower()
-		if c_name == ent_lower:
-			return wad
-	for wad in champion_wads:
-		c_name = wad.name.split(".")[0].lower()
-		if ent_lower.startswith(c_name) or c_name.startswith(ent_lower):
-			return wad
-	for wad in champion_wads:
-		c_name = wad.name.split(".")[0].lower()
-		if len(c_name) >= 5 and c_name[:5] in ent_lower:
-			return wad
-	return None
-
-
 # ==============================================================================
-# LEAGUETOOLKIT (LTK) NATIVE MOD PROJECT BUILDERS (8 LAYERS)
+# LEAGUETOOLKIT (LTK) NATIVE MOD PROJECT BUILDERS (9 LAYERS)
 # ==============================================================================
 def init_mod_project_structure(
 	project_dir: Path,
@@ -2489,6 +3340,7 @@ def init_mod_project_structure(
 		("base", 0, "Base transparent textures"),
 		("champions", 10, "Champion skins vanilla normalization"),
 		("structures", 20, "Canonical structure models and rubble"),
+		("monsters", 25, "Canonical epic monsters"),
 		("minions", 30, "Canonical faction minion silhouettes"),
 		("wards", 40, "Vision wards and trinkets normalization"),
 		("accents", 50, "Map clutter and trophy neutralization"),
@@ -2513,6 +3365,7 @@ def init_mod_project_structure(
 
 	art_icon = None
 	art_image = None
+	art_thumb = None
 	for s_dir in search_dirs:
 		for img_name in ("preview.png", "preview.jpg", "preview.jpeg", "banner.png", "image.png", "icon.png"):
 			cand = s_dir / img_name
@@ -2521,17 +3374,15 @@ def init_mod_project_structure(
 					ext = cand.suffix.lower()
 					art_icon = f"icon{ext}"
 					art_image = f"image{ext}"
+					art_thumb = f"thumbnail{ext}"
 					shutil.copy2(cand, project_dir / art_icon)
 					shutil.copy2(cand, project_dir / art_image)
-					for meta_folder in ("meta", "META"):
-						meta_dir = project_dir / meta_folder
-						meta_dir.mkdir(parents=True, exist_ok=True)
-						shutil.copy2(cand, project_dir / art_icon)
-						shutil.copy2(cand, project_dir / art_image)
-						shutil.copy2(cand, project_dir / f"thumbnail{ext}")
+					shutil.copy2(cand, project_dir / art_thumb)
 					break
 				except Exception:
-					pass
+					art_icon = None
+					art_image = None
+					art_thumb = None
 		if art_icon:
 			break
 
@@ -2547,46 +3398,17 @@ def init_mod_project_structure(
 		"layers": layers_payload,
 	}
 
-	if art_icon and art_image:
-		manifest["thumbnail"] = f"thumbnail{ext}"
+	if art_icon and art_image and art_thumb:
+		manifest["thumbnail"] = art_thumb
 		manifest["icon"] = art_icon
 		manifest["image"] = art_image
 
 	(project_dir / "mod.config.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
 	(project_dir / ".modignore").write_text("*.tmp\n*.bak\n.git*\nThumbs.db\n.hash\n", encoding="utf-8")
 
-	readme_md = f"""### 📖 Overview
-A surgical, zero-bloat restoration mod that brings League of Legends back to its canonical **Vanilla** state using strictly native engine declarations and memory graphs.
+	readme_md, license_text = _get_mod_docs()
 
----
-
-### 🌟 Acknowledgements & Dedications
-This project stands on the shoulders of the true pioneers of the League of Legends reverse engineering and modding community:
-
-* **[moonshadow565](https://github.com/moonshadow565)** — Creator of **`ritobin`** and **`lolpytools`**.
-* **[Crauzer](https://github.com/Crauzer)** — Head of **`LeagueToolkit`**, **`cslol-manager`**, and WAD toolchains.
-* **[CommunityDragon](https://github.com/CommunityDragon)** — For continuous maintenance of game hash tables.
-
----
-
-Compiled and packaged via **[Vanilla True Builder](https://github.com/gsmeven/vanilla-true-builder)** by **[Neve](https://github.com/gsmeven)**.
-"""
 	(project_dir / "README.md").write_text(readme_md, encoding="utf-8")
-
-	license_text = """Copyright (C) 2026 Neve — Vanilla True Builder
-
-Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
-Full Terms: https://creativecommons.org/licenses/by-nc-sa/4.0/
-
-Permissions & Conditions:
-• Attribution (BY): Credit the author (Neve) and link to the upstream repository.
-• Non-Commercial (NC): Commercial use, monetization, paywalls, or resale are strictly prohibited.
-• Share-Alike (SA): Any modifications, updates, or derivative builds must inherit this exact license.
-
-Disclaimer:
-Provided "AS IS", without warranties of any kind. Unofficial community project;
-League of Legends and all related game assets belong to Riot Games, Inc.
-"""
 	(project_dir / "LICENSE").write_text(license_text, encoding="utf-8")
 	(project_dir / "LICENSE.md").write_text(license_text, encoding="utf-8")
 
@@ -2671,6 +3493,29 @@ def build_layer_structures(
 						shutil.copy2(bin_file, dest)
 
 
+def build_layer_monsters(
+	project_dir: Path,
+	map11_cache_dir: Path,
+	dry_run: bool = False,
+) -> None:
+	if dry_run or not map11_cache_dir.is_dir():
+		return
+	content_monsters = project_dir / "content" / "monsters" / "Map11.wad.client"
+	for char_name in MONSTER_CHARACTERS:
+		for char_root in (map11_cache_dir / "data" / "characters", map11_cache_dir / "characters"):
+			skins_dir = char_root / char_name / "skins"
+			if skins_dir.is_dir():
+				for bin_file in skins_dir.glob("skin*.bin"):
+					if bin_file.is_file():
+						m = re.fullmatch(r"skin(\d+)\.bin", bin_file.name, re.IGNORECASE)
+						if not m or m.group(1) == "0":
+							continue
+						rel = bin_file.relative_to(map11_cache_dir)
+						dest = content_monsters / rel
+						dest.parent.mkdir(parents=True, exist_ok=True)
+						shutil.copy2(bin_file, dest)
+
+
 def build_layer_minions(
 	project_dir: Path,
 	map11_cache_dir: Path,
@@ -2733,11 +3578,23 @@ def build_layer_accents(
 			rel = p.relative_to(map11_cache_dir)
 			rel_lower = rel.as_posix().lower()
 
+			is_extra_hidden_char = False
+			if "characters/" in rel_lower:
+				m_ch = re.search(r'characters/([^/]+)/', rel_lower)
+				if m_ch:
+					ch_n = m_ch.group(1)
+					if (
+						ch_n not in (STRUCTURE_CHARACTERS | MONSTER_CHARACTERS | MINION_CHARACTERS | WARD_CHARACTERS | MAP_CHAMPION_CHARACTERS)
+						and not (ch_n.startswith("sru_") and "minion" in ch_n)
+					):
+						is_extra_hidden_char = True
+
 			is_accent = (
 				"base_srx.materials.bin" in rel_lower
 				or rel_lower.endswith("map11.bin")
-				or any(ev in rel_lower for ev in EVENT_CHARACTERS)
+				or any(f"characters/{ev}/" in rel_lower for ev in EVENT_CHARACTERS)
 				or any(bn in rel_lower for bn in BANNER_CHARACTERS)
+				or is_extra_hidden_char
 			)
 			if is_accent:
 				dest = content_accents / rel
@@ -2815,7 +3672,7 @@ def pack_modpkg_project(
 
 	raise RuntimeError(f"Package output was not created at {output_dir}")
 
-# ==============================================================================
+	# ==============================================================================
 # DIRECTORY LIFECYCLE & SIGNALS (MAINPROCESS EXCLUSIVE)
 # ==============================================================================
 def cleanup_temp_dirs() -> None:
@@ -2945,6 +3802,7 @@ class ProgressScheduler:
 			options.get("accents", True),
 			options.get("wards", True),
 			options.get("structures", True),
+			options.get("monsters", True),
 			options.get("minions", True),
 			options.get("finishers", True),
 			options.get("champions", True),
@@ -3001,6 +3859,7 @@ def build_vanilla_pipeline(
 			"accents": True,
 			"wards": True,
 			"structures": True,
+			"monsters": True,
 			"minions": True,
 			"finishers": True,
 			"recalls": True,
@@ -3010,6 +3869,7 @@ def build_vanilla_pipeline(
 	opt_accents = options.get("accents", True)
 	opt_wards = options.get("wards", True)
 	opt_structures = options.get("structures", True)
+	opt_monsters = options.get("monsters", True)
 	opt_minions = options.get("minions", True)
 	opt_finishers = options.get("finishers", True)
 	opt_recalls = options.get("recalls", True)
@@ -3037,7 +3897,7 @@ def build_vanilla_pipeline(
 				init_mod_project_structure(project_dir, workspace_root=workspace_root, options=options)
 
 			# 1. MAP11 CONTAINER & SUB-MODULES
-			needs_map = any([opt_accents, opt_wards, opt_structures, opt_minions, opt_finishers, opt_champions]) and map_wad.is_file()
+			needs_map = any([opt_accents, opt_wards, opt_structures, opt_monsters, opt_minions, opt_finishers, opt_champions]) and map_wad.is_file()
 			if needs_map:
 				emit_progress(scheduler.pct("map11", 0.0), "PROCESSING MAP11", "", "Verifying canonical Map11 container...")
 				map11_hash = file_fingerprint(map_wad)
@@ -3048,6 +3908,8 @@ def build_vanilla_pipeline(
 					emit_progress(scheduler.pct("map11", 0.5), "Map11: Cache", "", "Valid Map11 master cache reused...")
 					if opt_structures:
 						build_layer_structures(project_dir, map11_cache_dir, dry_run=dry_run)
+					if opt_monsters:
+						build_layer_monsters(project_dir, map11_cache_dir, dry_run=dry_run)
 					if opt_minions:
 						build_layer_minions(project_dir, map11_cache_dir, dry_run=dry_run)
 					if opt_wards:
@@ -3085,6 +3947,7 @@ def build_vanilla_pipeline(
 						cleaned_elements = clean_map_elements(
 							temp_dir,
 							dry_run=dry_run,
+							tools=cfg,
 							progress_callback=lambda idx, tot, name: emit_progress(
 								scheduler.pct("map11", 0.30 + (idx / max(tot, 1)) * 0.25),
 								"Map11: Sanitize",
@@ -3142,6 +4005,8 @@ def build_vanilla_pipeline(
 
 					if opt_structures and not dry_run:
 						build_layer_structures(project_dir, map11_cache_dir, dry_run=dry_run)
+					if opt_monsters and not dry_run:
+						build_layer_monsters(project_dir, map11_cache_dir, dry_run=dry_run)
 					if opt_minions and not dry_run:
 						build_layer_minions(project_dir, map11_cache_dir, dry_run=dry_run)
 					if opt_wards and not dry_run:
@@ -3439,12 +4304,12 @@ def build_vanilla_pipeline(
 		# ======================================================================
 		cache_dir = cfg["cache_dir"]
 		allowed_wads = set()
+		script_hash = _script_fingerprint()
 
-		needs_map = any([opt_accents, opt_wards, opt_structures, opt_minions, opt_finishers, opt_champions]) and map_wad.is_file()
+		needs_map = any([opt_accents, opt_wards, opt_structures, opt_monsters, opt_minions, opt_finishers, opt_champions]) and map_wad.is_file()
 		if needs_map and map_wad.is_file():
 			emit_progress(scheduler.pct("map11", 0.0), "PROCESSING MAP11", "", "Verifying canonical Map11 container...")
 			wad_hash = file_fingerprint(map_wad)
-			script_hash = _script_fingerprint()
 			map11_wad_dir = get_canonical_cache_dir(cache_dir, map_wad)
 
 			if _is_cache_valid(map11_wad_dir, wad_hash, script_hash) and not dry_run:
@@ -3482,6 +4347,7 @@ def build_vanilla_pipeline(
 					cleaned_elements = clean_map_elements(
 						temp_dir,
 						dry_run=dry_run,
+						tools=cfg,
 						progress_callback=lambda idx, tot, name: emit_progress(
 							scheduler.pct("map11", 0.30 + (idx / max(tot, 1)) * 0.25),
 							"Map11: Sanitize",
@@ -3778,6 +4644,7 @@ def main() -> None:
 	parser.add_argument("--no-accents", action="store_true", help="Do not omit map accents, statues, banners and trophies")
 	parser.add_argument("--no-wards", action="store_true", help="Do not revert vision wards")
 	parser.add_argument("--no-structures", action="store_true", help="Do not revert structures (Turrets, Rubble, Inhibitors, Nexus, Shopkeepers)")
+	parser.add_argument("--no-monsters", action="store_true", help="Do not revert epic monsters (Baron, Herald, Voidgrubs)")
 	parser.add_argument("--no-minions", action="store_true", help="Do not revert minions and creeps")
 	parser.add_argument("--no-finishers", action="store_true", help="Do not neutralize nexus finishers")
 	parser.add_argument("--no-recalls", action="store_true", help="Do not neutralize special recall overlays (Honor, Challenger)")
@@ -3808,6 +4675,7 @@ def main() -> None:
 		"accents": not args.no_accents,
 		"wards": not args.no_wards,
 		"structures": not args.no_structures,
+		"monsters": not args.no_monsters,
 		"minions": not args.no_minions,
 		"finishers": not args.no_finishers,
 		"recalls": not args.no_recalls,
@@ -3899,6 +4767,7 @@ class TkApp:
 		self.chk_accents = tk.BooleanVar(value=True)
 		self.chk_wards = tk.BooleanVar(value=True)
 		self.chk_structures = tk.BooleanVar(value=True)
+		self.chk_monsters = tk.BooleanVar(value=True)
 		self.chk_minions = tk.BooleanVar(value=True)
 		self.chk_finishers = tk.BooleanVar(value=True)
 		self.chk_recalls = tk.BooleanVar(value=True)
@@ -4079,22 +4948,6 @@ class TkApp:
 				("selected", self.C_CYAN_MAGIC),
 				("pressed", self.C_GOLD_ACCENT),
 			],
-		)
-
-		style.configure(
-			"Hextech.TRadiobutton",
-			background=self.C_BG_CARD,
-			foreground=self.C_GOLD_TEXT,
-			font=("Segoe UI", 9),
-			focuscolor=self.C_BG_CARD,
-			indicatorrelief="flat",
-			padding=2,
-		)
-		style.map(
-			"Hextech.TRadiobutton",
-			background=[("active", self.C_BG_CARD_HOVER)],
-			foreground=[("active", self.C_GOLD_ACCENT)],
-			indicatorcolor=[("selected", self.C_CYAN_MAGIC), ("pressed", self.C_GOLD_ACCENT)],
 		)
 
 		style.configure(
@@ -4356,7 +5209,8 @@ class TkApp:
 			("Disable Map Accents", "Remove all event assets and clash banners", self.chk_accents),
 			("Disable Ward Skins", "Set all ward skins to default", self.chk_wards),
 			("Disable Structures Skins", "Restore all turrets, rubble, inhibitors, nexus and shopkeepers to default", self.chk_structures),
-			("Disable Minions Skins", "Restore all minions theme to default", self.chk_minions),
+			("Disable Monsters Skins", "Restore all epic monsters to default", self.chk_monsters),
+			("Disable Minions Skins", "Restore all minions to default", self.chk_minions),
 			("Disable Nexus Finishers", "Set all nexus finishers skins to default", self.chk_finishers),
 			("Disable Special Recalls", "Restore all special recalls to default", self.chk_recalls),
 			("Disable Champions Skins", "Set all champions skins to default", self.chk_champions),
@@ -4633,6 +5487,7 @@ class TkApp:
 				"accents": True,
 				"wards": True,
 				"structures": True,
+				"monsters": True,
 				"minions": True,
 				"finishers": True,
 				"recalls": True,
@@ -4643,6 +5498,7 @@ class TkApp:
 				"accents": self.chk_accents.get(),
 				"wards": self.chk_wards.get(),
 				"structures": self.chk_structures.get(),
+				"monsters": self.chk_monsters.get(),
 				"minions": self.chk_minions.get(),
 				"finishers": self.chk_finishers.get(),
 				"recalls": self.chk_recalls.get(),

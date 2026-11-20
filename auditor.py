@@ -184,6 +184,7 @@ def _download_and_merge_game_hashes(
 
 	parts_downloaded: list[Path] = []
 	any_part_updated = False
+	network_failed = False
 	part_idx = 0
 
 	while True:
@@ -196,13 +197,22 @@ def _download_and_merge_game_hashes(
 			updated = _download_conditional(url, part_path, etag_path)
 			if updated:
 				any_part_updated = True
+			if not updated and not (part_path.is_file() and part_path.stat().st_size > 0):
+				network_failed = True
+				break
 			parts_downloaded.append(part_path)
 			part_idx += 1
+		except urllib.error.HTTPError as err:
+			if err.code == 404:
+				break
+			network_failed = True
+			break
 		except Exception:
+			network_failed = True
 			break
 
 	needs_merge = any_part_updated or not unified_game.is_file() or unified_game.stat().st_size < 1024
-	if parts_downloaded and needs_merge:
+	if parts_downloaded and needs_merge and not network_failed:
 		temp_unified = hashes_dir / "hashes.game.txt.tmp"
 		with open(temp_unified, "wb") as out_final:
 			for p in parts_downloaded:
@@ -213,7 +223,7 @@ def _download_and_merge_game_hashes(
 		for p in parts_downloaded:
 			p.unlink(missing_ok=True)
 			p.with_suffix(".etag").unlink(missing_ok=True)
-	elif not parts_downloaded:
+	elif not parts_downloaded and not network_failed:
 		monolithic_url = "https://raw.githubusercontent.com/CommunityDragon/Data/master/hashes/lol/hashes.game.txt"
 		etag_mono = hashes_dir / "hashes.game.txt.etag"
 		if force and etag_mono.exists():
@@ -256,8 +266,8 @@ def ensure_toolkit_binaries(
 	if not wadtools_path.is_file() or not ritobin_path.is_file():
 		force = True
 
-	zip_dest = tools_dir / "tools.zip"
-	etag_path = tools_dir / "tools.zip.etag"
+	zip_dest = tools_dir / "tools_auditor.zip"
+	etag_path = tools_dir / "tools.auditor.zip.etag"
 
 	if force and etag_path.exists():
 		etag_path.unlink(missing_ok=True)
@@ -361,8 +371,10 @@ def fast_vanilla_revert(
 	base_text: str,
 	target_skin: str,
 	skin_numeric_id: str | None,
+	char_name: str | None = None,
+	source_skin: str = "Skin0",
 ) -> str:
-	text = re.sub(
+	text, n_skin = re.subn(
 		r'(?i)(["\'](?:Characters[/\\])?[^"\'/\\]+[/\\]Skins[/\\])Skin\d+(["\']\s*=\s*SkinCharacterDataProperties)',
 		rf'\g<1>{target_skin}\g<2>',
 		base_text,
@@ -387,6 +399,42 @@ def fast_vanilla_revert(
 			text,
 			count=1,
 		)
+
+	if char_name and (n_skin == 0 or n_res_defs == 0):
+		src_base = f"characters/{char_name}/skins/{source_skin}".lower()
+		tgt_base = f"characters/{char_name}/skins/{target_skin}".lower()
+		h_src_skin = f"0x{_fnv1a(src_base):08x}"
+		h_tgt_skin = f"0x{_fnv1a(tgt_base):08x}"
+		h_src_res = f"0x{_fnv1a(src_base + '/resources'):08x}"
+		h_tgt_res = f"0x{_fnv1a(tgt_base + '/resources'):08x}"
+
+		if n_skin == 0:
+			text = re.sub(
+				rf'(?im)^([ \t]*){re.escape(h_src_skin)}(\s*=\s*SkinCharacterDataProperties\b)',
+				rf'\g<1>{h_tgt_skin}\g<2>',
+				text,
+				count=1,
+			)
+			text = re.sub(
+				rf'(?i)(objectPath:\s*hash(?:\[[^\]]+\])?\s*=\s*){re.escape(h_src_skin)}\b',
+				rf'\g<1>{h_tgt_skin}',
+				text,
+				count=1,
+			)
+		if n_res_defs == 0:
+			text, n_hex_res = re.subn(
+				rf'(?im)^([ \t]*){re.escape(h_src_res)}(\s*=\s*ResourceResolver\b)',
+				rf'\g<1>{h_tgt_res}\g<2>',
+				text,
+				count=1,
+			)
+			if n_hex_res > 0:
+				text = re.sub(
+					rf'(?i)(:\s*link\s*=\s*){re.escape(h_src_res)}\b',
+					rf'\g<1>{h_tgt_res}',
+					text,
+					count=1,
+				)
 
 	if skin_numeric_id and skin_numeric_id.isdigit():
 		text = re.sub(r'(?i)(\b(?:m_?)?skinId\s*:\s*(?:u32|int|u16)\s*=\s*)\d+', rf'\g<1>{skin_numeric_id}', text, count=1)
@@ -912,7 +960,7 @@ class ChampionAuditorApp:
 		if sys.platform == "win32" and hasattr(self, "hwnd") and self.hwnd:
 			try:
 				import ctypes
-				ctypes.windll.ShowWindow(self.hwnd, 6)
+				ctypes.windll.user32.ShowWindow(self.hwnd, 6)
 				return
 			except Exception:
 				pass
@@ -2210,7 +2258,7 @@ class ChampionAuditorApp:
 
 							if base_txt.is_file():
 								base_content = base_txt.read_text(encoding="utf-8")
-								rev_content = fast_vanilla_revert(base_content, target_skin, current_skin_num)
+								rev_content = fast_vanilla_revert(base_content, target_skin, current_skin_num, char_name=c_name)
 								out_txt.write_text(rev_content, encoding="utf-8")
 							else:
 								continue
@@ -2227,7 +2275,12 @@ class ChampionAuditorApp:
 					patched_skn_entries: list[tuple[bytes, str]] = []
 					if submesh_alias_tasks:
 						for ent_name, skin_sfx, old_sub, new_sub in submesh_alias_tasks:
-							base_skn_list = [p for p in temp_dir.rglob("*.skn") if "base" in p.as_posix().lower()]
+							base_skn_list = [
+								p for p in temp_dir.rglob("*.skn")
+								if f"characters/{ent_name}/" in p.as_posix().lower() and "base" in p.as_posix().lower()
+							]
+							if not base_skn_list:
+								base_skn_list = [p for p in temp_dir.rglob("*.skn") if "base" in p.as_posix().lower()]
 							if not base_skn_list:
 								base_skn_list = list(temp_dir.rglob(f"{ent_name}.skn")) + list(temp_dir.rglob(f"{ent_name.capitalize()}.skn"))
 
