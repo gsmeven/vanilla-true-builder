@@ -318,7 +318,7 @@ The AI receives the exact, pristine baseline data it needs to write the fix, str
        }
    }
    ```
-7. **LAW 7 (Canonical Base ResourceMap Parity):** The `resourceMap` block must be a **pure 1:1 clone of `Skin0`**. Discard all target-skin exclusive combat variants, emotes, recalls, jokes, props, and `0x00000000` keys. The engine only ever queries native Base animation events, guaranteeing zero desynchronization.
+7. **LAW 7 (Canonical Base ResourceMap Parity):** The `resourceMap` block must be a **pure 1:1 clone of `Skin0`**. Discard all target-skin exclusive combat variants, emotes, recalls, jokes, props, and `0x00000000` keys.
 8. **LAW 8 (Object Identifier):** Always declare `objectPath: hash = "Characters/<Entity>/Skins/<SkinID>"`.
 9. **LAW 9 (The Submesh Contract & Geometric Aliasing):** If an audit report detects a **Submesh Contract Divergence**, Line 2 must declare:
    ```ritobin
