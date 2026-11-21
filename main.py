@@ -2603,7 +2603,7 @@ def force_vanilla_existing_skins(
 				]
 				template_content = "\n".join(clean_lines)
 
-				if c_name == main_entity:
+				if c_name == char_name:
 					base_f = target_bin.parent / "skin0.bin.txt"
 					if base_f.is_file():
 						try:
