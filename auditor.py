@@ -335,16 +335,31 @@ def ensure_ritobin_hashes(
 ) -> None:
 	hashes_dir = Path(hashes_dir)
 	hashes_dir.mkdir(parents=True, exist_ok=True)
+	any_bin_updated = False
+	newest_bin_mtime = 0.0
 	for filename, url in _COMMUNITY_DRAGON_RITOBIN_URLS.items():
 		dest = hashes_dir / filename
 		etag_path = hashes_dir / f"{filename}.etag"
 		if force and etag_path.exists():
 			etag_path.unlink(missing_ok=True)
 		try:
-			_download_conditional(url, dest, etag_path)
+			if _download_conditional(url, dest, etag_path):
+				any_bin_updated = True
 		except Exception:
 			pass
-	_download_and_merge_game_hashes(hashes_dir, force=force)
+		if dest.is_file():
+			try:
+				newest_bin_mtime = max(newest_bin_mtime, dest.stat().st_mtime)
+			except OSError:
+				pass
+
+	unified_game = hashes_dir / "hashes.game.txt"
+	stale_game_hashes = (
+		unified_game.is_file()
+		and newest_bin_mtime > 0.0
+		and (unified_game.stat().st_mtime + 300.0) < newest_bin_mtime
+	)
+	_download_and_merge_game_hashes(hashes_dir, force=(force or any_bin_updated or stale_game_hashes))
 
 
 def ensure_toolkit_binaries(
@@ -1748,10 +1763,11 @@ class ChampionAuditorApp:
 			base_main = main_entity_skins.get("0")
 
 			skn_files = list(tmp_dir.rglob("*.skn"))
+			main_skn_files = [s for s in skn_files if f"characters/{main_entity_name}/" in s.as_posix().lower()] or skn_files
 			base_submeshes = []
 			target_submeshes = []
 
-			for skn in skn_files:
+			for skn in main_skn_files:
 				skn_str = skn.as_posix().lower()
 				if "/base/" in skn_str or "/skin0/" in skn_str:
 					if not base_submeshes:
@@ -1759,7 +1775,7 @@ class ChampionAuditorApp:
 				elif f"/skin{skin_filter}/" in skn_str or f"skin{skin_filter}.skn" in skn_str:
 					if not target_submeshes:
 						target_submeshes = read_skn_submeshes(skn)
-
+						
 			submesh_divergence = []
 			suggested_alias = None
 			if base_submeshes and target_submeshes:

@@ -525,16 +525,35 @@ def ensure_ritobin_hashes(
 ) -> None:
 	hashes_dir = Path(hashes_dir)
 	hashes_dir.mkdir(parents=True, exist_ok=True)
+	any_bin_updated = False
+	newest_bin_mtime = 0.0
 	for filename, url in _COMMUNITY_DRAGON_RITOBIN_URLS.items():
 		dest = hashes_dir / filename
 		etag_path = hashes_dir / f"{filename}.etag"
 		if force and etag_path.exists():
 			etag_path.unlink(missing_ok=True)
 		try:
-			_download_conditional(url, dest, etag_path, progress_callback=progress_callback)
+			if _download_conditional(url, dest, etag_path, progress_callback=progress_callback):
+				any_bin_updated = True
 		except Exception as exc:
 			LOG.warning("Failed to update %s: %s", filename, exc)
-	_download_and_merge_game_hashes(hashes_dir, force=force, progress_callback=progress_callback)
+		if dest.is_file():
+			try:
+				newest_bin_mtime = max(newest_bin_mtime, dest.stat().st_mtime)
+			except OSError:
+				pass
+
+	unified_game = hashes_dir / "hashes.game.txt"
+	stale_game_hashes = (
+		unified_game.is_file()
+		and newest_bin_mtime > 0.0
+		and (unified_game.stat().st_mtime + 300.0) < newest_bin_mtime
+	)
+	_download_and_merge_game_hashes(
+		hashes_dir,
+		force=(force or any_bin_updated or stale_game_hashes),
+		progress_callback=progress_callback,
+	)
 
 
 def ensure_toolkit_binaries(
@@ -928,6 +947,18 @@ def _iter_champion_wads(champions_dir: Path = DEFAULT_CHAMPIONS_DIR) -> list[Pat
 			continue
 		filtered.append(path)
 	return sorted(filtered)
+
+
+def _iter_ui_global_discovered(temp_dir: Path) -> list[Path]:
+	vitals: list[Path] = []
+	for current, _, filenames in os.walk(str(temp_dir)):
+		c_p = Path(current)
+		for f in filenames:
+			pf = c_p / f
+			fl = f.lower()
+			if fl.endswith(".bin") or fl.endswith(".materials") or fl.endswith(".ltk.bin") or "." not in f:
+				vitals.append(pf)
+	return sorted(set(vitals))
 
 
 def find_files_by_extensions(directory: Path, extensions: set[str] | list[str] | str) -> list[Path]:
@@ -2028,8 +2059,8 @@ def clean_map_elements(
 		rel_posix = f.relative_to(wad_dir).as_posix().lower()
 		if rel_posix.endswith(".materials.bin.txt") and not rel_posix.endswith("/base_srx.materials.bin.txt"):
 			continue
-		if "characters" in rel_posix:
-			parts = rel_posix.split("/")
+		parts = rel_posix.split("/")
+		if "characters" in parts:
 			idx = parts.index("characters")
 			char_name = parts[idx + 1] if len(parts) > idx + 1 else ""
 			if char_name not in all_accents_chars:
@@ -2051,8 +2082,8 @@ def clean_map_elements(
 			continue
 
 		is_event_char = False
-		if "characters" in rel_posix:
-			parts = rel_posix.split("/")
+		parts = rel_posix.split("/")
+		if "characters" in parts:
 			idx = parts.index("characters")
 			if len(parts) > idx + 1 and parts[idx + 1] in all_accents_chars:
 				is_event_char = True
@@ -2450,7 +2481,7 @@ def sync_template_linked_block(template_content: str, base_text: str) -> str:
 	if not m_base:
 		return template_content
 	live_linked_block = m_base.group(1)
-	return re.sub(r'(?i)linked:\s*list\[string\]\s*=\s*\{[\s\S]*?\n\}', live_linked_block, template_content, count=1)
+	return re.sub(r'(?i)linked:\s*list\[string\]\s*=\s*\{[\s\S]*?\n\}', lambda _: live_linked_block, template_content, count=1)
 
 
 def fast_vanilla_revert(
@@ -2605,6 +2636,10 @@ def force_vanilla_existing_skins(
 
 				if c_name == char_name:
 					base_f = target_bin.parent / "skin0.bin.txt"
+					if not base_f.is_file():
+						cands = list(target_bin.parent.glob("[sS][kK][iI][nN]0.bin.txt"))
+						if cands:
+							base_f = cands[0]
 					if base_f.is_file():
 						try:
 							live_base_text = base_f.read_text(encoding="utf-8", errors="ignore")
@@ -4346,7 +4381,9 @@ def build_vanilla_pipeline(
 					LOG.info("Reusing Global elements from master cache: %s", global_wad.name)
 					emit_progress(scheduler.pct("ui", 0.75), f"{wad_label}: Cache", "", f"Valid {global_wad.name} master cache reused...")
 
-					for g_file in global_cache_dir.rglob("*.bin"):
+					for g_file in global_cache_dir.rglob("*"):
+						if not g_file.is_file() or g_file.name == ".hash" or g_file.name.endswith(".txt"):
+							continue
 						rel_p = g_file.relative_to(global_cache_dir).as_posix().lower()
 						if opt_finishers and any(k in rel_p for k in ("nexusfinisher", "endofgame")):
 							dest_f = project_dir / "content" / "finishers" / global_wad.name / g_file.relative_to(global_cache_dir)
@@ -4377,6 +4414,7 @@ def build_vanilla_pipeline(
 							temp_glob,
 							cfg,
 							dry_run=dry_run,
+							file_selector=_iter_ui_global_discovered,
 							parallel=True,
 							progress_callback=lambda idx, tot, name: emit_progress(
 								scheduler.pct("ui", 0.55 + (idx / max(tot, 1)) * 0.10),
@@ -4695,17 +4733,6 @@ def build_vanilla_pipeline(
 							filter_pattern=ext_filter_pattern,
 							dry_run=dry_run,
 						)
-
-						def _iter_ui_global_discovered(temp_dir: Path) -> list[Path]:
-							vitals: list[Path] = []
-							for current, _, filenames in os.walk(str(temp_dir)):
-								c_p = Path(current)
-								for f in filenames:
-									pf = c_p / f
-									fl = f.lower()
-									if fl.endswith(".bin") or fl.endswith(".materials") or fl.endswith(".ltk.bin") or "." not in f:
-										vitals.append(pf)
-							return sorted(set(vitals))
 
 						decompile_bin_files(
 							temp_fin,
