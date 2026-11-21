@@ -35,7 +35,7 @@ except Exception:
 LOG = logging.getLogger("vanilla_builder")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
-APP_VERSION = "v1.8.5"
+APP_VERSION = "v1.8.6"
 GITHUB_REPO_URL = "https://github.com/gsmeven/vanilla-true-builder"
 GITHUB_LATEST_API = "https://api.github.com/repos/gsmeven/vanilla-true-builder/releases/latest"
 
@@ -3548,8 +3548,6 @@ def init_mod_project_structure(
 	if hasattr(sys, "_MEIPASS"):
 		search_dirs.insert(0, Path(getattr(sys, "_MEIPASS")))
 
-	art_icon = None
-	art_image = None
 	art_thumb = None
 	for s_dir in search_dirs:
 		for img_name in ("preview.png", "preview.jpg", "preview.jpeg", "banner.png", "image.png", "icon.png"):
@@ -3557,18 +3555,12 @@ def init_mod_project_structure(
 			if cand.is_file():
 				try:
 					ext = cand.suffix.lower()
-					art_icon = f"icon{ext}"
-					art_image = f"image{ext}"
 					art_thumb = f"thumbnail{ext}"
-					shutil.copy2(cand, project_dir / art_icon)
-					shutil.copy2(cand, project_dir / art_image)
 					shutil.copy2(cand, project_dir / art_thumb)
 					break
 				except Exception:
-					art_icon = None
-					art_image = None
 					art_thumb = None
-		if art_icon:
+		if art_thumb:
 			break
 
 	semver = APP_VERSION.lstrip("v")
@@ -3579,14 +3571,12 @@ def init_mod_project_structure(
 		"description": desc_str,
 		"authors": ["Neve"],
 		"license": "CC-BY-NC-SA-4.0",
-		"tags": ["Vanilla","Restoration"],
+		"tags": ["Vanilla", "Restoration"],
 		"layers": layers_payload,
 	}
 
-	if art_icon and art_image and art_thumb:
+	if art_thumb:
 		manifest["thumbnail"] = art_thumb
-		manifest["icon"] = art_icon
-		manifest["image"] = art_image
 
 	(project_dir / "mod.config.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
 	(project_dir / ".modignore").write_text("*.tmp\n*.bak\n.git*\nThumbs.db\n.hash\n", encoding="utf-8")
@@ -3595,13 +3585,6 @@ def init_mod_project_structure(
 
 	(project_dir / "README.md").write_text(readme_md, encoding="utf-8")
 	(project_dir / "LICENSE").write_text(license_text, encoding="utf-8")
-	(project_dir / "LICENSE.md").write_text(license_text, encoding="utf-8")
-
-	for meta_folder in ("meta", "META"):
-		meta_dir = project_dir / meta_folder
-		meta_dir.mkdir(parents=True, exist_ok=True)
-		(meta_dir / "LICENSE").write_text(license_text, encoding="utf-8")
-		(meta_dir / "README.md").write_text(readme_md, encoding="utf-8")
 
 
 def build_layer_base(project_dir: Path) -> None:

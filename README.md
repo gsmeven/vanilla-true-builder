@@ -205,11 +205,11 @@ $$\text{Cache Validity} = (\text{WAD\_HASH} = \text{Current WAD}) \land (\text{S
 * **Pipeline Engine Fingerprint:** Truncated SHA-256 derived from `APP_VERSION`. If the VTB pipeline or submesh contract engine code updates, obsolete caches invalidate automatically.
 * **Master Flat Storage:** Cached outputs are stored in flat directories (`cache/<wad_name>/.hash`), allowing unchanged archives to bypass extraction, decompilation, sanitization, and instant recompilation.
 
-### 6. Native Toolchains (`wadtools`, `ritobin`, `league-mod`)
-VTB interfaces directly with LeagueToolkit's bleeding-edge Rust ecosystem (`crates/ltk_wad`, `crates/ltk_ritobin`, and `league-mod`), eliminating legacy compatibility wrappers and runtime architecture probing overhead:
+### 6. Native Toolchains (`wadtools`, `ritobin`, `ltk_mod_project`)
+VTB interfaces directly with LeagueToolkit's bleeding-edge Rust ecosystem (`wadtools`, `ritobin-tools`, `ltk_mod_project`, and `ltk_modpkg`), eliminating legacy compatibility wrappers and runtime architecture probing overhead:
 * **Selective WAD Extraction (`wadtools`):** Operates directly on Riot's Zstandard-compressed `.wad.client` archives. Leverages targeted regex filters (`-x`) to extract exclusively required skin `.bin` properties and `.skn` geometry files in seconds, bypassing gigabytes of unused audio and animation streams.
 * **Property Tree Compilation (`ritobin-tools`):** Utilizes native verb-based CLI commands (`convert <in> -o <out> -t rito/bin -H <hashes>`), guaranteeing loss-free serialization and full compatibility with Riot's modern 64-bit hash types (`hash[u64]`, `xxh3`) and dynamic property trees.
-* **Multi-Layer Packaging (`league-mod`):** Packages modular LTK mod projects (`.modpkg`) with isolated runtime layers directly into distribution-ready packages.
+* **Multi-Layer Packaging (`vtb-packer` via `ltk_mod_project` + `ltk_modpkg`):** Compiles modular LTK mod projects (`.modpkg`) with isolated runtime layers directly through the official Rust library crates (exposed as `league-mod.exe` in `tools.zip`).
 
 ### 7. Multi-Core Processing (`MAX_PARALLEL_WAD_JOBS`)
 Processing over 160 champions and monolithic map archives sequentially would take hours. VTB leverages a multi-process architecture:
@@ -220,7 +220,7 @@ Processing over 160 champions and monolithic map archives sequentially would tak
 ### 8. Toolchain CI/CD & Synchronization
 VTB maintains its entire operational dependency stack autonomously without manual user intervention:
 * **Self-Update ([`vanilla-true-builder`](https://github.com/gsmeven/vanilla-true-builder)):** When a newer application release is published on GitHub, VTB downloads the updated package in the background, renames the running process to `_old.exe`, moves the new binary into place, spawns the updated instance, and terminates the parent cleanly.
-* **Toolchain ([`vtb-ltk-tools`](https://github.com/gsmeven/vtb-ltk-tools)):** Rather than bundling static, outdated binaries or requiring users to compile Rust toolchains locally, VTB synchronizes directly with a dedicated CI/CD repository that continuously tracks, builds, and distributes hardened 64-bit Windows binaries of `wadtools.exe`, `ritobin.exe` and `league-mod.exe` via automated release packages (`tools.zip`).
+* **Toolchain ([`vtb-ltk-tools`](https://github.com/gsmeven/vtb-ltk-tools)):** Rather than bundling static, outdated binaries or requiring users to compile Rust toolchains locally, VTB synchronizes directly with a dedicated CI/CD repository that continuously tracks, builds, and distributes hardened 64-bit Windows binaries of `wadtools.exe`, `ritobin.exe`, and `vtb-packer` (`league-mod.exe`, backed by `ltk_mod_project`/`ltk_modpkg`) via automated release packages (`tools.zip`).
 * **Synchronization:** Hash containers and tool archives are queried using HTTP conditional headers (`If-None-Match`). If upstream endpoints return HTTP `304 Not Modified`, redundant downloads, disk writes, and bandwidth consumption are entirely eliminated.
 * **Hash Assembly:** Automatically detects, downloads, and merges segmented CommunityDragon hash streams (`hashes.game.txt.0`, `.1`, etc.) into a unified local hash container required for accurate asset-path resolution in `wadtools`.
 
@@ -419,7 +419,7 @@ python main.py --dry-run
 
 * [**Neve**](https://github.com/gsmeven) — Creator and lead maintainer of the Vanilla True ecosystem:
   * [**vanilla-true-builder**](https://github.com/gsmeven/vanilla-true-builder) — Master restoration engine and auditor suite.
-  * [**vtb-ltk-tools**](https://github.com/gsmeven/vtb-ltk-tools) — Continuous integration pipeline building and hosting bleeding-edge Windows binaries of `wadtools` and `ritobin`.
+  * [**vtb-ltk-tools**](https://github.com/gsmeven/vtb-ltk-tools) — Continuous integration pipeline building and hosting bleeding-edge Windows binaries of `wadtools`, `ritobin-tools`, and the `ltk_mod_project`-powered `.modpkg` packer.
 
 ## 🌟 Acknowledgements & Dedications
 
